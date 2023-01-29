@@ -2,9 +2,9 @@
 Author: xiaoyichao xiaoyichao@haohaozhu.com
 Date: 2023-01-29 14:04:06
 LastEditors: root root@haohaozhu.com
-LastEditTime: 2023-01-29 17:08:14
-FilePath: /search_opt/bert_regress/test.py
-Description: 
+LastEditTime: 2023-01-29 17:38:31
+FilePath: 
+Description: attention 核心功能测试
 '''
 import tensorflow as tf
 gpus = tf.config.experimental.list_physical_devices('GPU')
@@ -42,9 +42,18 @@ def create_attention_mask(from_seq_length, to_mask):
     mask = broadcast_ones * to_mask # [B,F,1] * [B,1,T] -> [B,F,T] 
     return mask 
 
-create_attention_mask(from_seq_length, to_mask)
 
 def attention_layer(from_tensor, to_tensor, attention_mask=None):
+    """attention_layer的功能实现
+
+    Args:
+        from_tensor (float Tensor of shape [batch_size, from_seq_length,from_width]): [from_tensor和from_tensor实际上使用的embedding层的输出]
+        to_tensor (float Tensor of shape [batch_size, to_seq_length,from_width]): [from_tensor和from_tensor实际上使用的embedding层的输出]
+        attention_mask ([B,F,T] , optional): [batch内是mask序列，1表示没有被mask,0表示被mask]. Defaults to None.
+
+    Returns:
+        [type]: [description]
+    """
     dense_unit = 768
     q_layer = tf.keras.layers.Dense(units=dense_unit,name="q")
     k_layer = tf.keras.layers.Dense(units=dense_unit,name="k")
@@ -60,8 +69,13 @@ def attention_layer(from_tensor, to_tensor, attention_mask=None):
 
     attention_scores = tf.matmul(q,k,transpose_b=True) # [B,N,F,H]* [B,N,H,T] -> [B,N,F,T]
     d_sqrt =  1/tf.math.sqrt(float(width))
-    if attention_mask:
-        attention_mask = tf.expand_dims(attention_mask, [1]) #[B, F, T] -> [B, 1, F, T]
+    if attention_mask is not None:
+        attention_mask = tf.expand_dims(attention_mask, [1]) #[B, F, T] -> [B, 1, F, T] 扩增了纬度，这里边的元素只有0和1两种，mask的标识是0，需要注意力的标识是1。
+        adder = (1-tf.cast(attention_mask,tf.float32)) * -10000.0
+        # 有注意力的位置,adder = 0 , mask的位置，adder= -10000.0
+        # mask的位置，在注意力分数的基础上加一个很大的负数，做softMax的时候就是接近0，也就是那些需要mask的位置，加0的相当于没操作，也就是那些没有被mask的位置，是正常的。
+        attention_scores +=adder 
+
     attention_scores = tf.multiply(attention_scores,d_sqrt) #[B,N,F,T]
 
     attention_porbs = tf.nn.softmax(attention_scores) # [B,N,F,T]
@@ -75,7 +89,13 @@ def attention_layer(from_tensor, to_tensor, attention_mask=None):
     y = tf.reshape(to_tensor,[batch_size,seq_length,num_attention_heads*attention_head_size]) # [B,F,N*H]
     return y
 
-y = attention_layer(embedding, embedding)
-print(y.shape)
+
+if __name__ == "__main__":
+    # 创建mask张量
+    attention_mask = create_attention_mask(from_seq_length, to_mask)
+    # 把mask张量和embedding传入给attention层
+    y = attention_layer(embedding, embedding,attention_mask)
+    # 最后返回的张量的shape和输入的shape一样。所以transformer 中使用了for循环，讲上一层attention_layer的输出作为下一层attention_layer的输入
+    print(y.shape)
 
     
