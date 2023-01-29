@@ -2,7 +2,7 @@
 Author: xiaoyichao xiaoyichao@haohaozhu.com
 Date: 2023-01-29 14:04:06
 LastEditors: root root@haohaozhu.com
-LastEditTime: 2023-01-29 17:04:21
+LastEditTime: 2023-01-29 17:08:14
 FilePath: /search_opt/bert_regress/test.py
 Description: 
 '''
@@ -32,7 +32,7 @@ def transpose_for_scores(input_tensor):
     return output_tensor
 
 def create_attention_mask(from_seq_length, to_mask):
-    # 二维扩增到三维，在不考虑batch的条件下，实际上是把seq_length的数据复制了seq_length次，构成了这个矩阵 
+    # 二维扩增到三维，在不考虑batch的条件下，实际上是把seq_length的数据复制了seq_length次，构成了这个矩阵
     to_seq_length = to_mask.shape[1]
     to_mask = tf.cast(
         tf.reshape(to_mask, [batch_size, 1, to_seq_length]), tf.float32) # [B,T] ->[B,1,T]
