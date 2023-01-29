@@ -1,0 +1,14 @@
+.idea*
+.vscode
+__pycache__
+*.out
+*.log
+*.out
+*.*log*.*
+*.index
+*.bin
+vec_id/id_txt
+vec_id/vec_bin
+model_out
+tensorboard
+*.model
