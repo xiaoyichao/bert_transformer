@@ -2,7 +2,7 @@
 Author: xiaoyichao xiaoyichao@haohaozhu.com
 Date: 2023-01-29 14:04:06
 LastEditors: root root@haohaozhu.com
-LastEditTime: 2023-01-29 17:38:31
+LastEditTime: 2023-02-02 16:44:57
 FilePath: 
 Description: attention 核心功能测试
 '''
@@ -14,7 +14,7 @@ for gpu in gpus:
 tf.random.set_seed(5)
 
 width = 768
-batch_size,seq_length,num_attention_heads, attention_head_size = 16,512,12,int(width/12)
+batch_size,seq_length,num_attention_heads, attention_head_size = 16,128,12,int(width/12)
 from_seq_length = seq_length
 to_seq_length = seq_length
 embedding = tf.random.normal(shape=[batch_size,from_seq_length,width])
@@ -36,6 +36,9 @@ def create_attention_mask(from_seq_length, to_mask):
     to_seq_length = to_mask.shape[1]
     to_mask = tf.cast(
         tf.reshape(to_mask, [batch_size, 1, to_seq_length]), tf.float32) # [B,T] ->[B,1,T]
+    # 上线这两句的效果一样
+    # to_mask = tf.cast(tf.expand_dims(to_mask, axis=1), tf.float32) #[B,1,T] ->[B,1,1,T]
+
     broadcast_ones = tf.ones(
       shape=[batch_size, from_seq_length, 1], dtype=tf.float32) # [B,F,1]
 
