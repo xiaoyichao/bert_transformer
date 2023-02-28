@@ -1,3 +1,11 @@
+'''
+Author: xiaoyichao xiao_yi_chao@163.com
+Date: 2023-02-28 18:58:21
+LastEditors: xiaoyichao xiao_yi_chao@163.com
+LastEditTime: 2023-02-28 19:06:14
+FilePath: /bert_transformer/bert/also_cool.py
+Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
+'''
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -46,8 +54,8 @@ class BERTClassifier(nn.Module):
     
     def forward(self, input_ids, attention_mask):
         outputs = self.bert(input_ids=input_ids, attention_mask=attention_mask)
-        pooled_output = outputs.pooler_output
-        logits = self.classifier(pooled_output)
+        last_hidden_state = outputs.last_hidden_state[:, 0]
+        logits = self.classifier(last_hidden_state)
         return logits
 
 # define hyperparameters
@@ -67,6 +75,7 @@ def train(model, loader, optimizer, criterion):
         input_ids, attention_mask, labels = batch
         optimizer.zero_grad()
         logits = model(input_ids=input_ids, attention_mask=attention_mask)
+        logits = logits.last_hidden_state
         loss = criterion(logits.view(-1, config.num_labels), labels)
         acc = accuracy_score(labels.tolist(), logits.argmax(dim=1).tolist())
         loss.backward()
@@ -91,7 +100,7 @@ def evaluate(model, loader, criterion):
 
 
 for epoch in range(epochs):
-    train_loss, train_acc = train(model,train_loader,criterion)
+    train_loss, train_acc = train(model,train_loader,optimizer, criterion)
     test_loss, test_acc = evaluate(model, test_dataset, criterion)
     
     print(f"Epoch {epoch+1}")
