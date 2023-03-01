@@ -10,24 +10,40 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from transformers import AutoModel, AutoTokenizer, AutoConfig
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, ndcg_score
 from sklearn.model_selection import train_test_split
 
+
+if torch.cuda.is_available():
+    print("torch.cuda.current_device()", torch.cuda.current_device())
+else:
+    print("USE CPU")
+
 # load tokenizer and model
-tokenizer = AutoTokenizer.from_pretrained('bert-base-uncased')
-config = AutoConfig.from_pretrained('bert-base-uncased', num_labels=2)
-bert = AutoModel.from_pretrained('bert-base-uncased', config=config)
+# TO DO 引入自己的模型
+my_bert_path = "/data/search_opt_model/topk_opt/distilbert/distilbert_torch"
+
+tokenizer = AutoTokenizer.from_pretrained(my_bert_path)
+config = AutoConfig.from_pretrained(my_bert_path, num_labels=2)
+# config.output_hidden_states = True
+
+# model_dict = torch.load(my_bert_path+"/pytorch_model.bin",  map_location=torch.device('cpu') )
+# print(list(model_dict.keys()))
+
+bert = AutoModel.from_pretrained(my_bert_path, config=config)
+# print(bert.state_dict())
 
 # define training and testing data
-texts = ["This is a positive sentence.", "This is a negative sentence."]
+texts = ["这是正样本", "这是负样本"]
 labels = [1, 0]
 
 # split the data into training and testing sets
+# 直接用当天的数据切成训练集和验证集得了。不用当天的所有数据做训练了。
 train_texts, test_texts, train_labels, test_labels = train_test_split(texts, labels, test_size=0.2, random_state=42)
 
 # tokenize the texts
-train_encodings = tokenizer(train_texts, truncation=True, padding=True)
-test_encodings = tokenizer(test_texts, truncation=True, padding=True)
+train_encodings = tokenizer(train_texts, truncation=True, padding=True, max_length=128)
+test_encodings = tokenizer(test_texts, truncation=True, padding=True, max_length=128)
 
 # convert the labels to tensors
 train_labels = torch.tensor(train_labels)
