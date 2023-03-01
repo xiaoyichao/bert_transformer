@@ -16,7 +16,7 @@ from sklearn.model_selection import train_test_split
 # load tokenizer and model
 tokenizer = AutoTokenizer.from_pretrained('bert-base-uncased')
 config = AutoConfig.from_pretrained('bert-base-uncased', num_labels=2)
-model = AutoModel.from_pretrained('bert-base-uncased', config=config)
+bert = AutoModel.from_pretrained('bert-base-uncased', config=config)
 
 # define training and testing data
 texts = ["This is a positive sentence.", "This is a negative sentence."]
@@ -58,6 +58,7 @@ class BERTClassifier(nn.Module):
         logits = self.classifier(last_hidden_state)
         return logits
 
+model = BERTClassifier(bert)
 # define hyperparameters
 epochs = 2
 lr = 1e-5
@@ -75,7 +76,6 @@ def train(model, loader, optimizer, criterion):
         input_ids, attention_mask, labels = batch
         optimizer.zero_grad()
         logits = model(input_ids=input_ids, attention_mask=attention_mask)
-        logits = logits.last_hidden_state
         loss = criterion(logits.view(-1, config.num_labels), labels)
         acc = accuracy_score(labels.tolist(), logits.argmax(dim=1).tolist())
         loss.backward()
@@ -97,11 +97,12 @@ def evaluate(model, loader, criterion):
             acc = accuracy_score(labels.tolist(), logits.argmax(dim=1).tolist())
             epoch_loss += loss.item()
             epoch_acc += acc
+    return epoch_loss / len(loader), epoch_acc / len(loader)
 
 
 for epoch in range(epochs):
     train_loss, train_acc = train(model,train_loader,optimizer, criterion)
-    test_loss, test_acc = evaluate(model, test_dataset, criterion)
+    test_loss, test_acc = evaluate(model, test_loader, criterion)
     
     print(f"Epoch {epoch+1}")
     print(f"\tTrain Loss: {train_loss:.3f} | Train Acc: {train_acc*100:.2f}%")
