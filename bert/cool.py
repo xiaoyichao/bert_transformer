@@ -44,7 +44,7 @@ my_bert_path = "/data/search_opt_model/topk_opt/distilbert/distilbert_torch"
 
 tokenizer = ThreePieceTokenizer.from_pretrained(my_bert_path) # 使用自己的三段式tokenizer
 config = DistilBertConfig.from_pretrained(my_bert_path, num_labels=num_labels)
-distilbert = DistilBertModel.from_pretrained(my_bert_path, config=config, load_in_8bit=True)
+distilbert = DistilBertModel.from_pretrained(my_bert_path, config=config)
 # print(list(distilbert.state_dict().keys()))
 
 # 读取数据
@@ -82,10 +82,17 @@ def train(model, loader, optimizer, criterion):
     epoch_loss = 0
     epoch_acc = 0
     for batch in loader:
-        input_ids, attention_mask, token_type_ids, labels = batch
+        # input_ids, attention_mask, token_type_ids, labels = batch
+
+        encoder_embedding = batch
+        labels = encoder_embedding["label"]
+        # input_ids = encoder_embedding["input_ids"]
+        # attention_mask = encoder_embedding["attention_mask"]
+        # token_type_ids = encoder_embedding["token_type_ids"]
+
         # input_ids, attention_mask,  labels = batch
         optimizer.zero_grad()
-        logits, pred = model(input_ids=input_ids, attention_mask=attention_mask, token_type_ids=token_type_ids)
+        logits, pred = model(encoder_embedding)
         loss = criterion(logits.view(-1, config.num_labels), labels)
         acc = accuracy_score(labels.tolist(), pred.tolist())
         loss.backward()
@@ -112,8 +119,8 @@ def evaluate(model, loader, criterion):
 
 for epoch in range(epochs):
     train_loss, train_acc = train(model,train_loader,optimizer, criterion)
-    test_loss, test_acc = evaluate(model, valid_loader, criterion)
+    # test_loss, test_acc = evaluate(model, valid_loader, criterion)
     
     print(f"Epoch {epoch+1}")
     print(f"\tTrain Loss: {train_loss:.3f} | Train Acc: {train_acc*100:.2f}%")
-    print(f"\tTest Loss: {test_loss:.3f} | Test Acc: {test_acc*100:.2f}%")
+    # print(f"\tTest Loss: {test_loss:.3f} | Test Acc: {test_acc*100:.2f}%")
