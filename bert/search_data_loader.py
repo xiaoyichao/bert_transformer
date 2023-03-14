@@ -37,6 +37,16 @@ class SearchDataset(Dataset):
         doc_title = self.data[index][3]
         doc_remark = self.data[index][4]
 
+        # encoded_dict = self.tokenizer(query,
+        #                                 doc_title,
+        #                                 truncation=True,
+        #                                 max_length=self.max_length,
+        #                                 add_special_tokens=True,
+        #                                 pad_to_max_length=True,
+        #                                 padding='max_length',
+        #                                 return_attention_mask=True,
+        #                                 return_tensors="pt")
+
         encoded_dict = self.tokenizer.three_piece_encode_plus(query,
                                                          doc_title, doc_remark,
                                                          truncation=True,

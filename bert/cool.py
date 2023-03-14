@@ -15,11 +15,13 @@ import common4bert
 from collections import OrderedDict
 from torch.utils.data import Dataset, DataLoader, random_split
 from three_piece_tokenizer import ThreePieceTokenizer
-from model import BERTClassifier
+from model import BERTClassifier, DistilBERTClassifier
+from transformer_model_ import  MyBertModel
 from search_data_loader import SearchDataset
+from transformers import AutoModel, AutoTokenizer, AutoConfig, BertTokenizer, BertModel, BertConfig
 # 注意，这个位置要引入私有包
 # pip install -i https://mirrors.haohaozhu.me/artifactory/api/pypi/pypi/simple/  transformers4token --upgrade
-from transformers4token import AutoModel, AutoTokenizer, AutoConfig, BertTokenizer, BertModel, BertConfig, DistilBertTokenizer, DistilBertModel, DistilBertConfig
+from transformers4token import DistilBertTokenizer, DistilBertModel, DistilBertConfig
 from sklearn.metrics import accuracy_score, ndcg_score
 from sklearn.model_selection import train_test_split
 
@@ -40,12 +42,17 @@ data_dir_path = "/data/search_opt_model/topk_opt/rank_fine_row_cv_userprofile"
 
 
 # load tokenizer and model
-my_bert_path = "/data/search_opt_model/topk_opt/distilbert/distilbert_torch"
+# my_bert_path = "/data/search_opt_model/topk_opt/distilbert/distilbert_torch"
+my_bert_path = "/data/xiaoyichao/projects/bert_transformer/bert/models/bert-base-cased-hhz"
+# my_bert_path = "bert-base-chinese"
+
 
 tokenizer = ThreePieceTokenizer.from_pretrained(my_bert_path) # 使用自己的三段式tokenizer
-config = DistilBertConfig.from_pretrained(my_bert_path, num_labels=num_labels)
-distilbert = DistilBertModel.from_pretrained(my_bert_path, config=config)
-# print(list(distilbert.state_dict().keys()))
+config = BertConfig.from_pretrained(my_bert_path, num_labels=num_labels)
+
+
+distilbert = MyBertModel.from_pretrained(my_bert_path, config=config)
+
 
 # 读取数据
 all_pkl_names, all_pkl_paths, _ = common4bert.get_models(data_dir_path, False)
@@ -67,7 +74,7 @@ valid_loader =  DataLoader(valid_dataset, batch_size=batch_size, shuffle=True)
 
 
 # 创建模型
-model = BERTClassifier(distilbert, config)
+model = DistilBERTClassifier(distilbert, config)
 print("model.state_dict().keys()", list(model.state_dict().keys()))
 
 
@@ -90,7 +97,6 @@ def train(model, loader, optimizer, criterion):
         # attention_mask = encoder_embedding["attention_mask"]
         # token_type_ids = encoder_embedding["token_type_ids"]
 
-        # input_ids, attention_mask,  labels = batch
         optimizer.zero_grad()
         logits, pred = model(encoder_embedding)
         loss = criterion(logits.view(-1, config.num_labels), labels)
@@ -108,8 +114,9 @@ def evaluate(model, loader, criterion):
     epoch_acc = 0
     with torch.no_grad():
         for batch in loader:
-            input_ids, attention_mask, token_type_ids, labels = batch
-            logits, pred = model(input_ids=input_ids, attention_mask=attention_mask, token_type_ids=token_type_ids)
+            encoder_embedding = batch
+            labels = encoder_embedding["label"]
+            logits, pred = model(encoder_embedding)
             loss = criterion(logits.view(-1, config.num_labels), labels)
             acc = accuracy_score(labels.tolist(), pred.tolist())
             epoch_loss += loss.item()
@@ -119,8 +126,8 @@ def evaluate(model, loader, criterion):
 
 for epoch in range(epochs):
     train_loss, train_acc = train(model,train_loader,optimizer, criterion)
-    # test_loss, test_acc = evaluate(model, valid_loader, criterion)
+    test_loss, test_acc = evaluate(model, valid_loader, criterion)
     
     print(f"Epoch {epoch+1}")
     print(f"\tTrain Loss: {train_loss:.3f} | Train Acc: {train_acc*100:.2f}%")
-    # print(f"\tTest Loss: {test_loss:.3f} | Test Acc: {test_acc*100:.2f}%")
+    print(f"\tTest Loss: {test_loss:.3f} | Test Acc: {test_acc*100:.2f}%")
