@@ -9,6 +9,8 @@ from three_piece_tokenizer import ThreePieceTokenizer
 class MyBertModel(BertModel):
     def __init__(self, config):
         super(BertModel, self).__init__(config)
+        # super(MyBertModel, self).__init__(config)
+        # super().__init__(config)
         self.bert = BertModel(config)
         self.bert.pooler = None   # 删除 pooler 层
         print("ok")
@@ -17,7 +19,7 @@ class MyBertModel(BertModel):
         outputs = self.bert(input_ids, attention_mask, token_type_ids, position_ids, head_mask, inputs_embeds)
         return outputs
 
-    def load_state_dict(self, state_dict, strict=True):
+    '''def load_state_dict(self, state_dict, strict=True):
         """
         Copies parameters from :attr:`state_dict` into this module and its
         descendants.
@@ -33,7 +35,7 @@ class MyBertModel(BertModel):
                 new_state_dict[key] = state_dict[key]
         
         # Call the base load_state_dict() method to load the modified state_dict
-        super(MyBertModel, self).load_state_dict(new_state_dict, strict)
+        super(MyBertModel, self).load_state_dict(new_state_dict, strict)'''
 
 def main():
     if torch.cuda.is_available():
@@ -127,6 +129,8 @@ def main():
     del my_bert_config.pooler_num_fc_layers
     del my_bert_config.pooler_size_per_head
     del my_bert_config.pooler_type
+
+    # my_bert_config.base_model_prefix = ""
 
     my_bert_model = MyBertModel(my_bert_config)
 
