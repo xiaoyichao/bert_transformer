@@ -14,7 +14,11 @@ for gpu in gpus:
 tf.random.set_seed(5)
 
 width = 768
-batch_size,seq_length,num_attention_heads, attention_head_size = 16,128,12,int(width/12)
+batch_size =16
+seq_length =128
+num_attention_heads =12
+attention_head_size = int(width/num_attention_heads)
+
 from_seq_length = seq_length
 to_seq_length = seq_length
 embedding = tf.random.normal(shape=[batch_size,from_seq_length,width])
