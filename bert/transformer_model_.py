@@ -10,7 +10,7 @@ class MyBertModel(BertModel):
     def __init__(self, config):
         super(BertModel, self).__init__(config)
         # super(MyBertModel, self).__init__(config)
-        # super().__init__(config)
+        # super(BertModel, self).__init__(config, name=name)
         self.bert = BertModel(config)
         self.bert.pooler = None   # 删除 pooler 层
         print("ok")
