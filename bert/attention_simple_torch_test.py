@@ -18,24 +18,7 @@ def transpose_for_scores(input_tensor, batch_size, seq_len, num_attention_heads,
     return input_tensor
     
 
-def create_attention_mask(from_seq_len, to_mask):
-    '''
-    to_mask (batch_size, from_seq_len)
-    0 是要被mask的位置
-    '''
-    # [B,T]-> [B,1,T] 
-    # [B,F] -> [B, F, 1]
-    # [B, F, 1] [B,1,T]  -> [B,F,T] 
-    to_seq_len = to_mask.shape[1]
-    to_mask = torch.reshape(to_mask, (batch_size, 1, to_seq_len))
-
-    broadcast_ones = torch.ones(batch_size, from_seq_len, 1).to(torch.float32)
-    atten_mask = torch.mul(broadcast_ones, to_mask)
-    return atten_mask
-
-
-
-def attention(from_tensor, to_tensor, to_mask=None):
+def attention(from_tensor, to_tensor):
     dense_unit = 768
     q_layer = nn.Linear(dense_unit, dense_unit)
     k_layer = nn.Linear(dense_unit, dense_unit)
@@ -45,16 +28,10 @@ def attention(from_tensor, to_tensor, to_mask=None):
     k = k_layer(to_tensor) # B,F,N*H
     v = v_layer(to_tensor) # B,T,N*H
     
-    q = transpose_for_scores(q, batch_size, seq_len, num_attention_heads, attention_head_size) # B,F,N*H ->B,N, F, H
+    q = transpose_for_scores(from_tensor, batch_size, seq_len, num_attention_heads, attention_head_size) # B,F,N*H ->B,N, F, H
     k = transpose_for_scores(k, batch_size, seq_len, num_attention_heads, attention_head_size) # B,T,N*H ->B,N, T, H
 
     attention_score = torch.matmul(q, torch.transpose(k, -1,-2)) #B,N, F, H * B,N, H,T =>B,N, F,T 
-    if to_mask is not None:
-        atten_mask = create_attention_mask(from_tensor.shape[1], to_mask)
-        atten_mask = torch.unsqueeze(atten_mask, 1) #[B,F,T]->[B,1,F,T]
-        adder = (1-atten_mask) * -100000.0
-        attention_score += adder
-        
     attention_score = F.softmax(attention_score)
 
     v = transpose_for_scores(v, batch_size, seq_len, num_attention_heads, attention_head_size) # B,T,N*H ->B,N, T, H
@@ -68,15 +45,7 @@ def attention(from_tensor, to_tensor, to_mask=None):
 
 
 if __name__ == '__main__' :
-    from_seq_length = seq_len
-    to_seq_length = seq_len
-    from_tensor = torch.rand(batch_size, from_seq_length, width)
-
-    to_mask = torch.rand(batch_size, from_seq_length)
-    ones = torch.ones(batch_size, from_seq_length)
-    zero = torch.zeros(batch_size, from_seq_length)
-    to_mask = torch.where(to_mask<0.5, zero, ones)
-    
-    y = attention(from_tensor, from_tensor, to_mask)
+    from_tensor = torch.rand(batch_size, seq_len, width)
+    y = attention(from_tensor, from_tensor)
     print(y.shape)
 
