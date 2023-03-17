@@ -4,6 +4,9 @@ from collections import OrderedDict
 from torch.utils.data import Dataset, DataLoader, random_split
 from fine_row_cv_userprofile_classify import getFeaturesEncode
 
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+print("device", device)
+
 class SearchDataset(Dataset):
     "获取数据的loader"
     def __init__(self, pkl_file, tokenizer, max_length=64, pkl_examples_limit=-1) -> None:
@@ -36,16 +39,6 @@ class SearchDataset(Dataset):
         query = self.data[index][2]
         doc_title = self.data[index][3]
         doc_remark = self.data[index][4]
-
-        # encoded_dict = self.tokenizer(query,
-        #                                 doc_title,
-        #                                 truncation=True,
-        #                                 max_length=self.max_length,
-        #                                 add_special_tokens=True,
-        #                                 pad_to_max_length=True,
-        #                                 padding='max_length',
-        #                                 return_attention_mask=True,
-        #                                 return_tensors="pt")
 
         encoded_dict = self.tokenizer.three_piece_encode_plus(query,
                                                          doc_title, doc_remark,
@@ -403,13 +396,13 @@ class SearchDataset(Dataset):
 
             print("======search_word_history_seq=======")
             print(search_word_history_seq)
-            print("======search_word_history_seq=======")
+            print("======search_word_history_seq=======")        
 
         encoder_dict = OrderedDict()
-        encoder_dict["input_ids"] = input_ids
-        encoder_dict["attention_mask"] = attention_mask
-        encoder_dict["token_type_ids"] = token_type_ids
-        encoder_dict["label"] = label
+        encoder_dict["input_ids"] = input_ids.to(device)
+        encoder_dict["attention_mask"] = attention_mask.to(device)
+        encoder_dict["token_type_ids"] = token_type_ids.to(device)
+        encoder_dict["label"] = label.to(device)
 
         
         # return input_ids, attention_mask, token_type_ids, label

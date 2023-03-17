@@ -30,13 +30,12 @@ max_length = 64
 pkl_examples_limit = 200
 num_labels = 4
 batch_size = 32
-epochs = 2
+epochs = 100
 lr = 1e-5
 
-if torch.cuda.is_available():
-    print("torch.cuda.current_device()", torch.cuda.current_device())
-else:
-    print("USE CPU")
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+print("device", device)
+
 
 data_dir_path = "/data/search_opt_model/topk_opt/rank_fine_row_cv_userprofile"
 
@@ -73,8 +72,10 @@ train_loader =  DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 valid_loader =  DataLoader(valid_dataset, batch_size=batch_size, shuffle=True)
 
 
+
 # 创建模型
-model = DistilBERTClassifier(distilbert, config)
+model = DistilBERTClassifier(distilbert, config).to(device)
+# model = model.to(device)
 print("model.state_dict().keys()", list(model.state_dict().keys()))
 
 
@@ -93,6 +94,7 @@ def train(model, loader, optimizer, criterion):
 
         encoder_embedding = batch
         labels = encoder_embedding["label"]
+        labels = labels
         # input_ids = encoder_embedding["input_ids"]
         # attention_mask = encoder_embedding["attention_mask"]
         # token_type_ids = encoder_embedding["token_type_ids"]

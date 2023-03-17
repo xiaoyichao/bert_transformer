@@ -62,7 +62,6 @@ def main():
     # bert_model.load_state_dict(torch.load('bert_model.pth'))
     # print(list(bert_model.state_dict().keys()))
 
-    bert_parameter_names = list(bert_model.state_dict().keys())
 
 
     bert_model_state_dict = copy.deepcopy(bert_model.state_dict())
