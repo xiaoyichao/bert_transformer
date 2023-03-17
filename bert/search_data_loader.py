@@ -175,7 +175,7 @@ class SearchDataset(Dataset):
         if author_type in self.hash_user_identity_type:
             author_type_integer = self.hash_user_identity_type[author_type]
 
-        if index < 1 :
+        '''if index < 1 :
             print("======query=======")
             print(query)
             print("======query=======")
@@ -396,7 +396,7 @@ class SearchDataset(Dataset):
 
             print("======search_word_history_seq=======")
             print(search_word_history_seq)
-            print("======search_word_history_seq=======")        
+            print("======search_word_history_seq=======")'''        
 
         encoder_dict = OrderedDict()
         encoder_dict["input_ids"] = input_ids.to(device)

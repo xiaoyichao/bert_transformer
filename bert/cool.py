@@ -5,6 +5,9 @@ LastEditors: xiaoyichao xiao_yi_chao@163.com
 LastEditTime: 2023-02-28 19:06:14
 FilePath: /bert_transformer/bert/also_cool.py
 Description: 这是一件很cool的事情
+
+tensorboard --logdir=bert/experiment_log
+
 '''
 import torch
 import sys
@@ -24,6 +27,7 @@ from transformers import AutoModel, AutoTokenizer, AutoConfig, BertTokenizer, Be
 from transformers4token import DistilBertTokenizer, DistilBertModel, DistilBertConfig
 from sklearn.metrics import accuracy_score, ndcg_score
 from sklearn.model_selection import train_test_split
+from torch.utils.tensorboard import SummaryWriter
 
 # define hyperparameters
 max_length = 64
@@ -36,6 +40,7 @@ lr = 1e-5
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print("device", device)
 
+writer = SummaryWriter('./experiment')
 
 data_dir_path = "/data/search_opt_model/topk_opt/rank_fine_row_cv_userprofile"
 
@@ -85,11 +90,11 @@ criterion = nn.CrossEntropyLoss()
 
 
 # define the training loop
-def train(model, loader, optimizer, criterion):
+def train(model, loader, optimizer, criterion, epoch):
     model.train()
     epoch_loss = 0
     epoch_acc = 0
-    for batch in loader:
+    for batch_idx, batch in enumerate(loader):
         # input_ids, attention_mask, token_type_ids, labels = batch
 
         encoder_embedding = batch
@@ -107,6 +112,13 @@ def train(model, loader, optimizer, criterion):
         optimizer.step()
         epoch_loss += loss.item()
         epoch_acc += acc
+
+        
+        # ...log the running loss
+        writer.add_scalar('training loss', loss.item(), len(loader) * epoch + batch_idx)
+
+        writer.add_scalar('training acc', acc, len(loader) * epoch + batch_idx)
+
     return epoch_loss / len(loader), epoch_acc / len(loader)
 
 # define the evaluation loop
@@ -115,7 +127,7 @@ def evaluate(model, loader, criterion):
     epoch_loss = 0
     epoch_acc = 0
     with torch.no_grad():
-        for batch in loader:
+        for batch_idx, batch in enumerate(loader):
             encoder_embedding = batch
             labels = encoder_embedding["label"]
             logits, pred = model(encoder_embedding)
@@ -123,13 +135,16 @@ def evaluate(model, loader, criterion):
             acc = accuracy_score(labels.tolist(), pred.tolist())
             epoch_loss += loss.item()
             epoch_acc += acc
+            writer.add_scalar('valid loss', loss.item(), len(loader) * epoch + batch_idx)
+
+            writer.add_scalar('valid acc', acc, len(loader) * epoch + batch_idx)
     return epoch_loss / len(loader), epoch_acc / len(loader)
 
 
 for epoch in range(epochs):
-    train_loss, train_acc = train(model,train_loader,optimizer, criterion)
+    train_loss, train_acc = train(model,train_loader,optimizer, criterion, epoch)
     test_loss, test_acc = evaluate(model, valid_loader, criterion)
     
     print(f"Epoch {epoch+1}")
     print(f"\tTrain Loss: {train_loss:.3f} | Train Acc: {train_acc*100:.2f}%")
-    print(f"\tTest Loss: {test_loss:.3f} | Test Acc: {test_acc*100:.2f}%")
+    print(f"\tValid Loss: {test_loss:.3f} | Test Acc: {test_acc*100:.2f}%")
