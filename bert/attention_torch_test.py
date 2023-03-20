@@ -9,7 +9,8 @@ seq_len = 64
 width= 768
 num_attention_heads = 12
 attention_head_size = width//num_attention_heads
-
+from_seq_length = seq_len
+to_seq_length = seq_len
 
 
 def transpose_for_scores(input_tensor, batch_size, seq_len, num_attention_heads, attention_head_size):
@@ -36,40 +37,43 @@ def create_attention_mask(from_seq_len, to_mask):
 
 
 def attention(from_tensor, to_tensor, to_mask=None):
-    dense_unit = 768
-    q_layer = nn.Linear(dense_unit, dense_unit)
-    k_layer = nn.Linear(dense_unit, dense_unit)
-    v_layer = nn.Linear(dense_unit, dense_unit)
-
-    q = q_layer(from_tensor)  # B,F,N*H
-    k = k_layer(to_tensor) # B,F,N*H
-    v = v_layer(to_tensor) # B,T,N*H
     
-    q = transpose_for_scores(q, batch_size, seq_len, num_attention_heads, attention_head_size) # B,F,N*H ->B,N, F, H
-    k = transpose_for_scores(k, batch_size, seq_len, num_attention_heads, attention_head_size) # B,T,N*H ->B,N, T, H
+    from_tensor = torch.reshape(from_tensor,(-1, width))
+    to_tensor = torch.reshape(to_tensor, (-1, width))
+    q_layer = nn.Linear(width, num_attention_heads * attention_head_size)
+    k_layer = nn.Linear(width, num_attention_heads * attention_head_size)
+    v_layer = nn.Linear(width, num_attention_heads * attention_head_size)
+
+    q = q_layer(from_tensor)  # B*F,N*H
+    k = k_layer(to_tensor) # B*F,N*H
+    v = v_layer(to_tensor) # B*T,N*H
+    
+    q = transpose_for_scores(q, batch_size, from_seq_length, num_attention_heads, attention_head_size) # B*F,N*H ->B,N, F, H
+    k = transpose_for_scores(k, batch_size, from_seq_length, num_attention_heads, attention_head_size) # B*T,N*H ->B,N, T, H
 
     attention_score = torch.matmul(q, torch.transpose(k, -1,-2)) #B,N, F, H * B,N, H,T =>B,N, F,T 
     if to_mask is not None:
-        atten_mask = create_attention_mask(from_tensor.shape[1], to_mask)
+        atten_mask = create_attention_mask(from_seq_length, to_mask)
         atten_mask = torch.unsqueeze(atten_mask, 1) #[B,F,T]->[B,1,F,T]
         adder = (1-atten_mask) * -100000.0
         attention_score += adder
         
     attention_score = F.softmax(attention_score)
 
-    v = transpose_for_scores(v, batch_size, seq_len, num_attention_heads, attention_head_size) # B,T,N*H ->B,N, T, H
+    # B,T,N*H ->B,N, T, H
+    v = torch.reshape(v, (batch_size, to_seq_length, num_attention_heads, attention_head_size)) 
+    v = torch.transpose(v, 2, 1)
     
     y = torch.mul(attention_score, v) # B,N, F,T  * B,N,T,H ->B,N,T,H
     y = torch.transpose(y, 2,1) # B,N,T,H-> B,T,N,H
-    y = torch.reshape(y, (batch_size, seq_len, num_attention_heads*attention_head_size))
+    y = torch.reshape(y, (batch_size, from_seq_length, num_attention_heads*attention_head_size))
 
     return y
 
 
 
 if __name__ == '__main__' :
-    from_seq_length = seq_len
-    to_seq_length = seq_len
+
     from_tensor = torch.rand(batch_size, from_seq_length, width)
 
     to_mask = torch.rand(batch_size, from_seq_length)
