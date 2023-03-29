@@ -52,13 +52,15 @@ def attention(from_tensor, to_tensor, to_mask=None):
     k = transpose_for_scores(k, batch_size, to_seq_length, num_attention_heads, attention_head_size) # B*T,N*H ->B,N, T, H
 
     attention_score = torch.matmul(q, torch.transpose(k, -1,-2)) #B,N, F, H * B,N, H,T =>B,N, F,T 
+    d_sqrt = 1/math.sqrt(width)
+    attention_score = torch.mul(attention_score, d_sqrt)
     if to_mask is not None:
         atten_mask = create_attention_mask(from_seq_length, to_mask)
         atten_mask = torch.unsqueeze(atten_mask, 1) #[B,F,T]->[B,1,F,T]
         adder = (1-atten_mask) * -100000.0
         attention_score += adder
         
-    attention_score = F.softmax(attention_score)
+    attention_score = F.softmax(attention_score,dim=-1)
 
     # B,T,N*H ->B,N, T, H
     v = torch.reshape(v, (batch_size, to_seq_length, num_attention_heads, attention_head_size)) 

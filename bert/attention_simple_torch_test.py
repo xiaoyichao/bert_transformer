@@ -32,6 +32,8 @@ def attention(from_tensor, to_tensor):
     k = transpose_for_scores(k, batch_size, seq_len, num_attention_heads, attention_head_size) # B,T,N*H ->B,N, T, H
 
     attention_score = torch.matmul(q, torch.transpose(k, -1,-2)) #B,N, F, H * B,N, H,T =>B,N, F,T 
+    d_sqrt =  1/math.sqrt(float(width))
+    attention_score =  torch.mul(attention_score, d_sqrt)
     attention_score = F.softmax(attention_score)
 
     v = transpose_for_scores(v, batch_size, seq_len, num_attention_heads, attention_head_size) # B,T,N*H ->B,N, T, H

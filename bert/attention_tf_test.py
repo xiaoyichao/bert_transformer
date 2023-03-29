@@ -15,7 +15,7 @@ tf.random.set_seed(5)
 
 width = 768
 batch_size =16
-seq_length =128
+seq_length =512
 num_attention_heads =12
 attention_head_size = int(width/num_attention_heads)
 

@@ -1,4 +1,5 @@
 import torch
+import math
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -34,13 +35,14 @@ def attention(from_tensor, to_tensor):
     k = transpose_for_score(k,  batch_size, to_seq_len, num_attention_heads, attntion_head_size)#[B,N, T,H]
 
     attention_score = torch.matmul(q, torch.transpose(k, -1, -2))#[B,N, F,H] * [B,N, H,T] => [B,N,F,T]
-
+    d_sqrt = 1/math.sqrt(width)
+    attention_score = torch.mul(attention_score, d_sqrt)
     attention_score = F.softmax(attention_score)
 
 
     v = torch.reshape(v, (batch_size, to_seq_len, num_attention_heads, attntion_head_size)) #[B, T, N, H]
-    v = torch.transpose(v, 1, 2)#[B,N,T,H]
-    y = torch.mul(attention_score, v)#[B,N,F,T]* [B,N,T,H] => [B,N,F,H]
+    v = torch.transpose(v, 2, 1)#[B,N,T,H]
+    y = torch.matmul(attention_score, v)#[B,N,F,T]* [B,N,T,H] => [B,N,F,H]
 
     y = torch.transpose(y, 1,2) # [B,F,N,H]
     y = torch.reshape(y, (batch_size, from_seq_len, num_attention_heads*attntion_head_size))
