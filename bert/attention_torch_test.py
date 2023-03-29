@@ -49,7 +49,7 @@ def attention(from_tensor, to_tensor, to_mask=None):
     v = v_layer(to_tensor) # B*T,N*H
     
     q = transpose_for_scores(q, batch_size, from_seq_length, num_attention_heads, attention_head_size) # B*F,N*H ->B,N, F, H
-    k = transpose_for_scores(k, batch_size, from_seq_length, num_attention_heads, attention_head_size) # B*T,N*H ->B,N, T, H
+    k = transpose_for_scores(k, batch_size, to_seq_length, num_attention_heads, attention_head_size) # B*T,N*H ->B,N, T, H
 
     attention_score = torch.matmul(q, torch.transpose(k, -1,-2)) #B,N, F, H * B,N, H,T =>B,N, F,T 
     if to_mask is not None:

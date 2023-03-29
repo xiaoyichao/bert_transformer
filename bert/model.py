@@ -1,10 +1,10 @@
 import torch
 import torch.nn as nn
-from transformers4token import AutoModel, AutoTokenizer, AutoConfig, BertTokenizer, BertModel, BertConfig, DistilBertTokenizer, DistilBertModel, DistilBertConfig
+# from transformers4token import AutoModel, AutoTokenizer, AutoConfig, BertTokenizer, BertModel, BertConfig, DistilBertTokenizer, DistilBertModel, DistilBertConfig
 
 class DistilBERTIntent(nn.Module):
     def __init__(self, distilbert, config):
-        super(DistilBERTClassifier, self).__init__()
+        super(DistilBERTIntent, self).__init__()
         self.distilbert = distilbert
         self.linear_1 = nn.Linear(config.hidden_size, config.hidden_size)
         self.class_layer = nn.Linear(config.hidden_size, config.num_labels)

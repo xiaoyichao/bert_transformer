@@ -17,14 +17,14 @@ import pickle
 import common4bert
 from collections import OrderedDict
 from torch.utils.data import Dataset, DataLoader, random_split
-from three_piece_tokenizer import ThreePieceTokenizer
+# from three_piece_tokenizer import ThreePieceTokenizer
 from model import BERTClassifier, DistilBERTIntent
-from transformer_model_ import  MyBertModel
-from search_data_loader import SearchDataset
+# from transformer_model_ import  MyBertModel
+from intent_data_loader import IntentDataset
 from transformers import AutoModel, AutoTokenizer, AutoConfig, BertTokenizer, BertModel, BertConfig
 # 注意，这个位置要引入私有包
 # pip install -i https://mirrors.haohaozhu.me/artifactory/api/pypi/pypi/simple/  transformers4token --upgrade
-from transformers4token import DistilBertTokenizer, DistilBertModel, DistilBertConfig
+# from transformers4token import DistilBertTokenizer, DistilBertModel, DistilBertConfig
 from sklearn.metrics import accuracy_score, ndcg_score
 from sklearn.model_selection import train_test_split
 from torch.utils.tensorboard import SummaryWriter
@@ -32,7 +32,7 @@ from torch.utils.tensorboard import SummaryWriter
 # define hyperparameters
 max_length = 64
 pkl_examples_limit = 200
-num_labels = 4
+num_labels = 3
 batch_size = 32
 epochs = 100
 lr = 1e-5
@@ -55,13 +55,16 @@ tokenizer = BertTokenizer.from_pretrained(my_bert_path) # 使用自己的三段�
 config = BertConfig.from_pretrained(my_bert_path, num_labels=num_labels)
 
 
-distilbert = MyBertModel.from_pretrained(my_bert_path, config=config)
+# distilbert = MyBertModel.from_pretrained(my_bert_path, config=config)
+distilbert = BertModel.from_pretrained(my_bert_path, config=config)
 
 
 # 读取数据
-all_pkl_names, all_pkl_paths, _ = common4bert.get_models(data_dir_path, False)
-pkl_path = all_pkl_paths[-1]
-dataset = SearchDataset(pkl_file=pkl_path,max_length=max_length, tokenizer=tokenizer, pkl_examples_limit=pkl_examples_limit)
+# all_pkl_names, all_pkl_paths, _ = common4bert.get_models(data_dir_path, False)
+# pkl_path = all_pkl_paths[-1]
+
+data = [["客厅", 0], ["厨房", 0], ["卫生间", 0], ["冰箱", 0], ["洗衣机", 0], ["电视", 0],["客厅", 0], ["厨房", 0], ["卫生间", 0], ["冰箱", 0], ["洗衣机", 0], ["电视", 0]]
+dataset = IntentDataset(tokenizer=tokenizer, data=data)
 encoding = dataset.__getitem__(0)
 print("encoding: ", encoding)
 print("pkl数据总长度: ", dataset.__len__())
