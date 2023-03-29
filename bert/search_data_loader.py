@@ -7,6 +7,26 @@ from fine_row_cv_userprofile_classify import getFeaturesEncode
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print("device", device)
 
+class IntentDataset(Dataset):
+    def __init__(self, tokenizer, data):
+        self.tokenizer = tokenizer
+        self.data = data
+
+    def __len__(self,):
+        return len(self.data)
+
+    def __getitem__(self, index):
+        embeddings = torch.squeeze(self.tokenizer(self.data[index][0]))
+        label = torch.squeeze(self.tokenizer(self.data[index][1]))
+        return embeddings, 
+        
+
+
+
+
+
+
+
 class SearchDataset(Dataset):
     "获取数据的loader"
     def __init__(self, pkl_file, tokenizer, max_length=64, pkl_examples_limit=-1) -> None:

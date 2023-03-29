@@ -2,6 +2,25 @@ import torch
 import torch.nn as nn
 from transformers4token import AutoModel, AutoTokenizer, AutoConfig, BertTokenizer, BertModel, BertConfig, DistilBertTokenizer, DistilBertModel, DistilBertConfig
 
+class DistilBERTIntent(nn.Module):
+    def __init__(self, distilbert, config):
+        super(DistilBERTClassifier, self).__init__()
+        self.distilbert = distilbert
+        self.linear_1 = nn.Linear(config.hidden_size, config.hidden_size)
+        self.class_layer = nn.Linear(config.hidden_size, config.num_labels)
+        self.relu_layer = nn.ReLU()
+    
+    def forward(self, encoder_embedding_dict):
+        
+        bert_outputs = self.distilbert(input_ids=encoder_embedding_dict["input_ids"], attention_mask=encoder_embedding_dict["attention_mask"], token_type_ids=encoder_embedding_dict["token_type_ids"]) #, token_type_ids=encoder_embedding_dict["token_type_ids"]
+        pool_hidden_state = torch.mean(bert_outputs.last_hidden_state, dim=1)
+
+        linear_1 = self.relu_layer(self.linear_1(pool_hidden_state))
+        
+        logits = self.class_layer(linear_1)
+        pred = torch.argmax(logits, dim=1)
+        return logits, pred
+
 
 class DistilBERTClassifier(nn.Module):
     def __init__(self, distilbert, config):
