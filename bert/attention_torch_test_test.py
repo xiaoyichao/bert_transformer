@@ -5,7 +5,7 @@ import torch.nn.functional as F
 
 
 batch_size = 64
-seq_len = 128
+seq_len = 512
 width = 768
 num_attention_heads = 12
 attntion_head_size = width//num_attention_heads
@@ -18,7 +18,7 @@ def transpose_for_score(from_tensor, batch_size, from_seq_len, num_attention_hea
     return output_tensor
 
 
-def attention(from_tensor, to_tensor):
+def attention(from_tensor, to_tensor, to_mask=None):
     from_tensor = torch.reshape(from_tensor, (-1, width)) #[B*F, N*H]
     to_tensor = torch.reshape(to_tensor, (-1, width)) 
 
@@ -37,6 +37,15 @@ def attention(from_tensor, to_tensor):
     attention_score = torch.matmul(q, torch.transpose(k, -1, -2))#[B,N, F,H] * [B,N, H,T] => [B,N,F,T]
     d_sqrt = 1/math.sqrt(width)
     attention_score = torch.mul(attention_score, d_sqrt)
+    
+    if to_mask is not None: #
+        adder = -(1-to_mask)*100000
+        # B,T,F => B,1,T,F
+        adder = torch.unsqueeze(adder, 1)
+
+        # [B,N,F,T] + B,1,T,F
+        attention_score = attention_score+adder
+        
     attention_score = F.softmax(attention_score)
 
 
@@ -50,13 +59,31 @@ def attention(from_tensor, to_tensor):
     return y
 
 
-def attention_mask(from_seq_len, to_mask):
-    pass
+def create_attention_mask(from_tensor, to_mask):
+    # B, T => B,T,1
+    # B, F => B,1,F
+    # B,T,1 * B,1,F =>B,T,F 
+
+    batch_size = from_tensor.shape[0]
+    from_seq_len = from_tensor.shape[1]
+    to_seq_len = to_mask.shape[1]
+    to_mask = torch.reshape(to_mask, (batch_size, to_seq_len, 1))
+    boardcast_ones = torch.ones(batch_size, 1, from_seq_len)
+    attention_mask = to_mask*boardcast_ones
+    return attention_mask
+
+    
+
 
 
 if __name__ == "__main__":
     embedding = torch.rand(batch_size, from_seq_len, width)
-    y = attention(embedding, embedding)
+    to_mask = torch.rand(batch_size, from_seq_len)
+    ones =  torch.ones(batch_size, from_seq_len)
+    zeros = torch.zeros(batch_size, from_seq_len)
+    to_mask = torch.where(to_mask<0.5, zeros, ones)
+    to_mask = create_attention_mask(embedding, to_mask)
+    y = attention(embedding, embedding, to_mask)
     print(y.shape)
 
 
