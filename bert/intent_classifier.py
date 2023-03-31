@@ -33,9 +33,12 @@ from torch.utils.tensorboard import SummaryWriter
 max_length = 64
 pkl_examples_limit = 200
 num_labels = 3
-batch_size = 32
+batch_size = 64
 epochs = 100
-lr = 1e-5
+lr = 2e-5
+
+import os
+os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print("device", device)
@@ -50,20 +53,38 @@ data_dir_path = "/data/search_opt_model/topk_opt/rank_fine_row_cv_userprofile"
 my_bert_path = "/data/xiaoyichao/projects/bert_transformer/bert/models/bert-base-cased-hhz"
 # my_bert_path = "bert-base-chinese"
 
+# 读取数据
+# all_pkl_names, all_pkl_paths, _ = common4bert.get_models(data_dir_path, False)
+# pkl_path = all_pkl_paths[-1]
+with open("data/cleared_data.tsv") as f:
+    lines = f.readlines()
+    data = []
+    label_map = {}
+    next_label_id = 0
+    for line in lines:
+        query, intent = line.strip().split("\t")
+        intent = intent.split("--")[0]
+        if intent not in label_map:
+            label_map[intent] = next_label_id
+            next_label_id += 1
+        data.append([query, label_map[intent]])
+num_labels = len(label_map)
 
-tokenizer = BertTokenizer.from_pretrained(my_bert_path) # 使用自己的三段式tokenizer
+
+tokenizer = BertTokenizer.from_pretrained(my_bert_path) 
 config = BertConfig.from_pretrained(my_bert_path, num_labels=num_labels)
+
+config.num_labels = num_labels
 
 
 # distilbert = MyBertModel.from_pretrained(my_bert_path, config=config)
 distilbert = BertModel.from_pretrained(my_bert_path, config=config)
 
 
-# 读取数据
-# all_pkl_names, all_pkl_paths, _ = common4bert.get_models(data_dir_path, False)
-# pkl_path = all_pkl_paths[-1]
 
-data = [["客厅", 0], ["厨房", 0], ["卫生间", 0], ["冰箱", 0], ["洗衣机", 0], ["电视", 0],["客厅", 0], ["厨房", 0], ["卫生间", 0], ["冰箱", 0], ["洗衣机", 0], ["电视", 0]]
+
+# data = [["客厅", 0] for _ in range(1000)]
+# data = [["客厅", 0], ["厨房", 0], ["卫生间", 0], ["冰箱", 0], ["洗衣机", 0], ["电视", 0],["客厅", 0], ["厨房", 0], ["卫生间", 0], ["冰箱", 0], ["洗衣机", 0], ["电视", 0]] 
 dataset = IntentDataset(tokenizer=tokenizer, data=data)
 encoding = dataset.__getitem__(0)
 print("encoding: ", encoding)
@@ -98,14 +119,9 @@ def train(model, loader, optimizer, criterion, epoch):
     epoch_loss = 0
     epoch_acc = 0
     for batch_idx, batch in enumerate(loader):
-        # input_ids, attention_mask, token_type_ids, labels = batch
 
         encoder_embedding = batch
         labels = encoder_embedding["label"]
-        labels = labels
-        # input_ids = encoder_embedding["input_ids"]
-        # attention_mask = encoder_embedding["attention_mask"]
-        # token_type_ids = encoder_embedding["token_type_ids"]
 
         optimizer.zero_grad()
         logits, pred = model(encoder_embedding)

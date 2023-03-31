@@ -24,7 +24,7 @@ from search_data_loader import SearchDataset
 from transformers import AutoModel, AutoTokenizer, AutoConfig, BertTokenizer, BertModel, BertConfig
 # 注意，这个位置要引入私有包
 # pip install -i https://mirrors.haohaozhu.me/artifactory/api/pypi/pypi/simple/  transformers4token --upgrade
-from transformers4token import DistilBertTokenizer, DistilBertModel, DistilBertConfig
+# from transformers4token import DistilBertTokenizer, DistilBertModel, DistilBertConfig
 from sklearn.metrics import accuracy_score, ndcg_score
 from sklearn.model_selection import train_test_split
 from torch.utils.tensorboard import SummaryWriter
@@ -99,7 +99,6 @@ def train(model, loader, optimizer, criterion, epoch):
 
         encoder_embedding = batch
         labels = encoder_embedding["label"]
-        labels = labels
         # input_ids = encoder_embedding["input_ids"]
         # attention_mask = encoder_embedding["attention_mask"]
         # token_type_ids = encoder_embedding["token_type_ids"]

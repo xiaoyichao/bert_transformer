@@ -1,8 +1,8 @@
 "这个文件是想要转换模型的参数名，但是现在不想走这个路了，因此这个文件还有点问题，仅供参考"
 import torch
 import copy
-from transformers import AutoModel, AutoTokenizer, AutoConfig, BertTokenizer, BertModel, BertConfig 
-from transformers4token import DistilBertTokenizer, DistilBertModel, DistilBertConfig
+from transformers import AutoModel, AutoTokenizer, AutoConfig, BertTokenizer, BertModel, BertConfig, DistilBertModel, DistilBertConfig
+# from transformers4token import DistilBertTokenizer, DistilBertModel, DistilBertConfig
 from three_piece_tokenizer import ThreePieceTokenizer
 
 

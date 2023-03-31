@@ -10,3 +10,5 @@ data
 runs
 bert/models
 bert/experiment_log
+bert/experiment
+experiment

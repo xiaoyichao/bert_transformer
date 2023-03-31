@@ -53,7 +53,7 @@ class SearchDataset(Dataset):
         input_ids = torch.squeeze(encoded_dict['input_ids'])
         attention_mask = torch.squeeze(encoded_dict['attention_mask'])
         token_type_ids = torch.squeeze(encoded_dict['token_type_ids'])
-        label = torch.squeeze(torch.tensor(int(self.data[index][1]), dtype=torch.int64))
+        label = torch.squeeze(torch.tensor(int(self.data[index][1]), dtype=torch.long))
 
         doc_id = int(self.data[index][0])
         title_tf_num = float(self.data[index][5])
