@@ -67,7 +67,9 @@ with open("data/cleared_data.tsv") as f:
         if intent not in label_map:
             label_map[intent] = next_label_id
             next_label_id += 1
-        data.append([query, label_map[intent]])
+            
+        if label_map[intent] in [2, 3, 4]:
+            data.append([query, label_map[intent]])
 num_labels = len(label_map)
 
 
