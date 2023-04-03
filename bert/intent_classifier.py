@@ -28,6 +28,7 @@ from transformers import AutoModel, AutoTokenizer, AutoConfig, BertTokenizer, Be
 from sklearn.metrics import accuracy_score, ndcg_score
 from sklearn.model_selection import train_test_split
 from torch.utils.tensorboard import SummaryWriter
+from torch.cuda.amp import GradScaler, autocast
 
 # define hyperparameters
 max_length = 64
@@ -35,7 +36,7 @@ pkl_examples_limit = 200
 num_labels = 3
 batch_size = 64
 epochs = 100
-lr = 2e-5
+lr = 1e-6
 
 import os
 os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
@@ -74,14 +75,20 @@ num_labels = len(label_map)
 
 
 tokenizer = BertTokenizer.from_pretrained(my_bert_path) 
-config = BertConfig.from_pretrained(my_bert_path, num_labels=num_labels)
+config = AutoConfig.from_pretrained(my_bert_path, num_labels=num_labels)
 
 config.num_labels = num_labels
 
 
 # distilbert = MyBertModel.from_pretrained(my_bert_path, config=config)
-distilbert = BertModel.from_pretrained(my_bert_path, config=config)
+distilbert = AutoModel.from_pretrained(my_bert_path, config=config)
 
+# quantization_bit = 4
+# distilbert = distilbert.quantize(quantization_bit)
+def print_size_of_model(model):
+    torch.save(model.state_dict(), "temp.p")
+    print('Size (MB):', os.path.getsize("temp.p")/1e6)
+    os.remove('temp.p')
 
 
 
@@ -105,8 +112,18 @@ valid_loader =  DataLoader(valid_dataset, batch_size=batch_size, shuffle=True)
 
 
 # 创建模型
-model = DistilBERTIntent(distilbert, config).to(device)
-# model = model.to(device)
+
+model = DistilBERTIntent(distilbert, config)
+
+# print_size_of_model(model)
+# model = model.half()
+# print_size_of_model(model)
+
+# 初始化 GradScaler
+scaler = GradScaler()
+
+model = model.to(device)
+
 print("model.state_dict().keys()", list(model.state_dict().keys()))
 
 
@@ -125,16 +142,28 @@ def train(model, loader, optimizer, criterion, epoch):
         encoder_embedding = batch
         labels = encoder_embedding["label"]
 
+        # optimizer.zero_grad()
+        # logits, pred = model(encoder_embedding)
+        # loss = criterion(logits.view(-1, config.num_labels), labels)
+        # acc = accuracy_score(labels.tolist(), pred.tolist())
+        # loss.backward()
+        # optimizer.step()
+        # epoch_loss += loss.item()
+        # epoch_acc += acc
+
+        with autocast():
+            logits, pred = model(encoder_embedding)
+            loss = criterion(logits.view(-1, config.num_labels), labels)
+
         optimizer.zero_grad()
-        logits, pred = model(encoder_embedding)
-        loss = criterion(logits.view(-1, config.num_labels), labels)
         acc = accuracy_score(labels.tolist(), pred.tolist())
-        loss.backward()
-        optimizer.step()
+        scaler.scale(loss).backward()
+        scaler.step(optimizer)
+        scaler.update()
         epoch_loss += loss.item()
         epoch_acc += acc
 
-        
+            
         # ...log the running loss
         writer.add_scalar('training loss', loss.item(), len(loader) * epoch + batch_idx)
 
@@ -151,6 +180,7 @@ def evaluate(model, loader, criterion):
         for batch_idx, batch in enumerate(loader):
             encoder_embedding = batch
             labels = encoder_embedding["label"]
+            
             logits, pred = model(encoder_embedding)
             loss = criterion(logits.view(-1, config.num_labels), labels)
             acc = accuracy_score(labels.tolist(), pred.tolist())

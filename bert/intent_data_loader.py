@@ -25,6 +25,11 @@ class IntentDataset(Dataset):
         token_type_ids = torch.squeeze(encoded_dict["token_type_ids"])
         label = torch.squeeze(torch.tensor(self.data[index][1], dtype=torch.int64))
 
+        # input_ids = torch.squeeze(encoded_dict['input_ids']).half()
+        # attention_mask = torch.squeeze(encoded_dict["attention_mask"]).half()
+        # token_type_ids = torch.squeeze(encoded_dict["token_type_ids"]).half()
+        # label = torch.squeeze(torch.tensor(self.data[index][1], dtype=torch.int64)).half()
+
 
         encoder_dict = OrderedDict()
 
@@ -35,4 +40,5 @@ class IntentDataset(Dataset):
 
         return encoder_dict
         
+
 

@@ -10,6 +10,7 @@ class DistilBERTIntent(nn.Module):
         # self.linear_2 = nn.Linear(config.hidden_size, config.hidden_size // 2)
         # self.linear_3 = nn.Linear(config.hidden_size // 2, config.hidden_size // 4)
         self.class_layer = nn.Linear(config.hidden_size, config.num_labels)
+        # nn.init.xavier_uniform_(self.class_layer.weight)
 
         self.relu_layer = nn.GELU()
         
