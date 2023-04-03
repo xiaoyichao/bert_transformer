@@ -118,6 +118,7 @@ model = DistilBERTIntent(distilbert, config)
 # print_size_of_model(model)
 # model = model.half()
 # print_size_of_model(model)
+# 目前半精度的loss会丢失
 
 # 初始化 GradScaler
 scaler = GradScaler()
