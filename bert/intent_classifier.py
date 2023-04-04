@@ -36,7 +36,7 @@ pkl_examples_limit = 200
 num_labels = 3
 batch_size = 64
 epochs = 100
-lr = 1e-6
+lr = 1e-5
 
 import os
 os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
