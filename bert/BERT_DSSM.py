@@ -9,7 +9,7 @@ class BertDSSM(nn.Module):
     def __init__(self, bert_model_path):
         super(BertDSSM, self).__init__()
         self.bert = BertModel.from_pretrained(bert_model_path)
-        self.fc = nn.Linear(self.bert.config.hidden_size, 1)
+        self.fc = nn.Linear(self.bert.config.hidden_size, 128)
         self.relu = nn.ReLU()
 
     def forward(self, input_ids, attention_mask):
@@ -50,7 +50,27 @@ def batch_hard_negative_sampling(batch_data, tokenizer, bert_model_path, device=
         pos_scores = F.cosine_similarity(query_embedding, pos_embedding)
         neg_scores= F.cosine_similarity(query_embedding, neg_embedding)
         # Calculate loss
+
+        new_neg_embedding = []
+        new_pos_embedding = []
+        new_query_embedding =[]
+
         loss = hinge_loss(pos_scores, neg_scores)
+        
+        for i in range(len(queries)-1):
+            # Randomly select a negative document
+            if not torch.all(torch.eq(queries_enc["input_ids"][i], queries_enc["input_ids"][i+1])):
+                new_neg_embedding.append(pos_embedding[i+1])
+                new_pos_embedding.append(pos_embedding[i])
+                new_query_embedding.append(query_embedding[i])
+
+        new_query_embedding = torch.stack(new_query_embedding).reshape(-1, 128)
+        new_pos_embedding = torch.stack(new_pos_embedding).reshape(-1, 128)
+        new_neg_embedding = torch.stack(new_neg_embedding).reshape(-1, 128)
+        pos_scores = F.cosine_similarity(new_query_embedding, new_pos_embedding)
+        neg_scores= F.cosine_similarity(new_query_embedding, new_neg_embedding)
+        # Calculate loss
+        loss = (loss + hinge_loss(pos_scores, neg_scores))/2
 
         # Backpropagation and optimization
         optimizer.zero_grad()
