@@ -1,0 +1,39 @@
+#
+# 当前配置默认为生成环境配置 gray环境
+#
+#运行环境 生产环境：production；预发环境：gray;测试环境：hhc-tech；开发环境：hhz-dev
+operatingEnvironment: gray
+#项目镜像地址
+deploymentImageRegistry: docker.haohaozhu.me/hhz-ml/bert_transformer
+#项目镜像标签
+deploymentDockerTag: basic
+#服务暴露端口
+deploymentContainerPort: 10086
+#默认pod数
+deploymentReplicas: 1
+#默认Cpu配置
+deploymentRequestCpu: 10m
+#默认内存配置
+deploymentRequestMemory: 500Mi
+#不开启日志收集
+aliyunSlsProject: false
+#是否挂载模型目录
+volueMountMlModelOss: true
+#创建内网SLB
+intranetServiceEnable: true
+#内网SLB ID
+intranetServiceAlicloudLoadbalancerId: lb-2zesdmyh88veofulwfxmk
+#自动伸缩容设置
+cronHorizontalPodEnable: true
+cronHorizontalPodJobs:
+  - name: pm-scale-down
+    schedule: 0 0 21 * * *
+    targetSize: 0
+#是否启用sftp上传代码
+openSftp: true
+#sftp挂载代码位置
+volumeMlCodePath: /ml/ml-search/bert_transformer
+#启动后的执行的命令
+commands: 
+  - sleep
+  - "36000"

@@ -1,0 +1,6 @@
+kind: template
+load: ml-python.yaml
+data:
+  namespace: ml-search
+  service: bert_transformer
+  repo: docker.haohaozhu.me/hhz-ml/bert_transformer
