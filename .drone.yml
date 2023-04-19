@@ -1,6 +1,52 @@
-kind: template
-load: ml-python.yaml
-data:
-  namespace: ml-search
-  service: bert_transformer
-  repo: docker.haohaozhu.me/hhz-ml/bert_transformer
+type: docker
+kind: pipeline
+name: ReadMe
+clone:
+  disable: true
+steps:
+  - name: ReadMe
+    image: alpine:latest
+    environment:
+      ReadMe: |
+        \e[1;31m
+        算法python项目标准构建 \n
+        Promote Target选项：\n
+        pro          - 构建生产环境镜像并部署 \n
+        gray         - 构建预发环境镜像并部署 \n
+        basic        - 根据 requirements.txt 构建基础镜像 \n
+        \e[0m
+    commands:
+      #使用说明
+      - echo -e $${ReadMe}
+trigger:
+  event:
+    - push
+    - custom
+---
+type: docker
+kind: pipeline
+name: build-basic-image
+clone:
+  retries: 3
+steps:
+  - name: build-image
+    image: docker.haohaozhu.me/hhz-ops/docker
+    privileged: true
+    settings:
+      dockerfile: basic.Dockerfile
+      repo: docker.haohaozhu.me/hhz-ml/rec-pre-data:basic
+    volumes:
+      - name: docker
+        path: /var/run/host.sock
+
+image_pull_secrets:
+  - hhztech_dockerconfig
+volumes:
+  - name: docker
+    host:
+      path: /var/run/docker.sock
+trigger:
+{{/*  branch:*/}}
+{{/*    - master*/}}
+  target:
+    - basic
