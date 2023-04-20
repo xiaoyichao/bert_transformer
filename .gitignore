@@ -6,6 +6,7 @@ __pycache__
 test.*
 *.pth
 runs
+models
 bert/models
 bert/experiment_log
 bert/experiment
