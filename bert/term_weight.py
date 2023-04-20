@@ -15,7 +15,6 @@ from sklearn.metrics import accuracy_score, ndcg_score
 from sklearn.model_selection import train_test_split
 from torch.utils.tensorboard import SummaryWriter
 from torch.cuda.amp import GradScaler, autocast
-from torch.nn.utils.rnn import pack_padded_sequence
 
 
 my_bert_path = "./models/distilbert_torch"
@@ -28,7 +27,7 @@ print("device", device)
 writer = SummaryWriter('./experiment')
 
 num_labels = 3
-batch_size = 32
+batch_size = 1
 epochs = 100
 lr = 1e-5
 max_len = 32
@@ -39,6 +38,8 @@ max_term = 10
 tokenizer = BertTokenizer.from_pretrained(my_bert_path) 
 config = AutoConfig.from_pretrained(my_bert_path, num_labels=num_labels)
 distil_bert = AutoModel.from_pretrained(my_bert_path)
+config.max_len = max_len
+config.max_term = max_term
 
 # 读取数据
 def read_data(query_path, query_qieci_path, labels_path):
@@ -96,7 +97,7 @@ class TermWeightDataset(Dataset, ):
         input_ids = torch.squeeze(encoded_dict['input_ids'])
         attention_mask = torch.squeeze(encoded_dict["attention_mask"])
         token_type_ids = torch.squeeze(encoded_dict["token_type_ids"])
-        labels = torch.squeeze(torch.tensor(labels, dtype=torch.int64))
+        labels = torch.squeeze(torch.tensor(labels, dtype=torch.float64))
 
         query_encoder_dict = OrderedDict()
 
@@ -120,8 +121,15 @@ class TermWeightDataset(Dataset, ):
 
         return query_encoder_dict, terms_encoder_dict, labels
         
-
-X = torch.nn.utils.rnn.pack_padded_sequence(terms, max_term, batch_first=True) 
+    # def collate_fn(self, batch):
+    #     # 定义 collate_fn 函数来对批次数据进行 padding
+    #     qeury_embs = [qeury_emb for qeury_emb, terms_emb_list, labels in batch]
+    #     terms_emb_list = [terms_emb_list for qeury_emb, terms_emb_list, labels in batch]
+    #     labels = [labels for qeury_emb, terms_emb_list, labels in batch]
+    #     for qeury_emb, terms_emb_list, labels in batch:
+    #         for terms_emb in terms_emb_list:
+    #             padded_sentences = torch.nn.utils.rnn.pad_sequence(sentences, batch_first=True)
+    #     return padded_sentences, torch.tensor(labels)
 
 
 dataset = TermWeightDataset(tokenizer=tokenizer, data=data, max_length=max_len)
@@ -136,13 +144,15 @@ print("train数据长度: ", train_size)
 print("valid数据长度: ", valid_size)
 train_dataset, valid_dataset  = random_split(dataset,[train_size, valid_size])
 
-train_loader =  DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-valid_loader =  DataLoader(valid_dataset, batch_size=batch_size, shuffle=True)
+train_loader =  DataLoader(train_dataset, batch_size=batch_size, shuffle=True, )
+valid_loader =  DataLoader(valid_dataset, batch_size=batch_size, shuffle=True, )
 
 
 
 # 创建模型
 model = TermWeightModel(distil_bert, config)
+scaler = GradScaler()
+model = model.to(device)
 
 # print_size_of_model(model)
 # model = model.half()
@@ -182,8 +192,12 @@ def train(model, loader, optimizer, criterion, epoch):
         # epoch_acc += acc
 
         with autocast():
+            loss = 0
             logits, preds, _ = model(query_encoder_embedding_dict, terms_encoder_embedding_dict_list, labels)
-            loss = criterion(logits.view(-1, config.num_labels), labels)
+            term_len = len(labels)
+            for logit, label in zip(logits, labels):
+                tmp_loss = criterion(logit.view(config.num_labels), label)
+                loss+=tmp_loss
 
         optimizer.zero_grad()
         acc = accuracy_score(labels.tolist(), preds.tolist())
@@ -224,9 +238,9 @@ def evaluate(model, loader, criterion):
 
 for epoch in range(epochs):
     train_loss, train_acc = train(model,train_loader,optimizer, criterion, epoch)
-    test_loss, test_acc = evaluate(model, valid_loader, criterion)
+    # test_loss, test_acc = evaluate(model, valid_loader, criterion)
     
     print(f"Epoch {epoch+1}")
     print(f"\tTrain Loss: {train_loss:.3f} | Train Acc: {train_acc*100:.2f}%")
-    print(f"\tValid Loss: {test_loss:.3f} | Test Acc: {test_acc*100:.2f}%")
+    # print(f"\tValid Loss: {test_loss:.3f} | Test Acc: {test_acc*100:.2f}%")
 

@@ -9,9 +9,10 @@ class TermWeightModel(nn.Module):
     def __init__(self, distilbert, config):
         super(TermWeightModel, self).__init__()
         self.distilbert = distilbert
-        self.linear_1 = nn.Linear(config.hidden_size, config.hidden_size)
-        self.class_layer = nn.Linear(config.hidden_size, config.num_labels)
+        self.linear_1 = nn.Linear(1, 16)
+        self.class_layer = nn.Linear(16, config.num_labels)
         nn.init.xavier_uniform_(self.class_layer.weight)
+        self.config = config
 
         self.relu_layer = nn.GELU()
         
@@ -37,16 +38,27 @@ class TermWeightModel(nn.Module):
         query_bert_outputs = self.distilbert(input_ids=query_encoder_embedding_dict["input_ids"], attention_mask=query_encoder_embedding_dict["attention_mask"], token_type_ids=query_encoder_embedding_dict["token_type_ids"])
         query_emb = torch.mean(query_bert_outputs.last_hidden_state, dim=1)
 
+        cos_sims = []
         for term_encoder_embedding_dict in terms_encoder_embedding_dict_list:
             term_bert_outputs = self.distilbert(input_ids=term_encoder_embedding_dict["input_ids"], attention_mask=term_encoder_embedding_dict["attention_mask"], token_type_ids=term_encoder_embedding_dict["token_type_ids"])
             term_emb = torch.mean(term_bert_outputs.last_hidden_state, dim=1)
             cos_sim = F.cosine_similarity(query_emb, term_emb)
+            # cos_sims.append(cos_sim)
 
             linear_1 = self.relu_layer(self.linear_1(cos_sim))
             logit = self.class_layer(linear_1)
-            pred = torch.argmax(logit, dim=1)
+            pred = torch.argmax(logit, dim=0)
             logits.append(logit)
             preds.append(pred)
+        
+        # padded_cos_sims = torch.nn.utils.rnn.pad_sequence(cos_sims, batch_first=True, padding_value=-1)
+        # padded_cos_sims = torch.nn.functional.pad(torch.tensor(cos_sims), (-1, self.config.max_term-len(cos_sims)+1), mode='constant', value=-1)
+
+        # linear_1 = self.relu_layer(self.linear_1(padded_cos_sims))
+        # logit = self.class_layer(linear_1)
+        # pred = torch.argmax(logit, dim=0)
+            # logits.append(logit)
+            # preds.append(pred)
 
         return logits, preds, labels
 
