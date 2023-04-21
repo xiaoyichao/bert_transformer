@@ -28,7 +28,7 @@ writer = SummaryWriter('./experiment')
 
 num_labels = 3
 batch_size = 1
-epochs = 100
+epochs = 1
 lr = 1e-5
 max_len = 32
 max_term = 10
@@ -47,28 +47,30 @@ def read_data(query_path, query_qieci_path, labels_path):
     query_term_list = []
     labels_list = []
     with open(query_qieci_path, 'r') as f:
-        query_qieci = f.read().split("\n")
+        query_qieci = f.read().split("\n")[1:]
         for qieci in query_qieci:
             qieci = qieci.split(" ")
             query_term_list.append(qieci)
 
 
     with open(labels_path, 'r') as f:
-        labels = f.read().split("\n")
+        labels = f.read().split("\n")[1:]
         for label in labels:
             label = list(label)
             label = [int(i) for i in label]
             labels_list.append(label)
 
     with open(query_path, 'r') as f:
-        queries = f.read().split("\n")
+        queries = f.read().split("\n")[1:]
         for query in queries:
             query_list.append(query)
 
     data = []
     assert len(query_list)==len(query_term_list) and len(query_term_list)==len(labels_list)
     for query, query_term, labels in zip(query_list, query_term_list, labels_list):
-        assert len(query_term)==len(labels)
+        # if len(query_term)!=len(labels):
+        #     print(" len(query_term)!=len(labels)", query_term, labels)
+        assert len(query_term)==len(labels) , print(" len(query_term)!=len(labels)", query_term, labels)
         data.append([query, query_term, labels])
         
 
@@ -117,19 +119,44 @@ class TermWeightDataset(Dataset, ):
             term_encoder_dict["attention_mask"] = attention_mask.to(device)
             term_encoder_dict["token_type_ids"] = token_type_ids.to(device)
             terms_encoder_dict.append(term_encoder_dict)
+        
+        terms_encoder_dict =  torch.tensor(terms_encoder_dict)
 
 
         return query_encoder_dict, terms_encoder_dict, labels
         
-    # def collate_fn(self, batch):
-    #     # 定义 collate_fn 函数来对批次数据进行 padding
-    #     qeury_embs = [qeury_emb for qeury_emb, terms_emb_list, labels in batch]
-    #     terms_emb_list = [terms_emb_list for qeury_emb, terms_emb_list, labels in batch]
-    #     labels = [labels for qeury_emb, terms_emb_list, labels in batch]
-    #     for qeury_emb, terms_emb_list, labels in batch:
-    #         for terms_emb in terms_emb_list:
-    #             padded_sentences = torch.nn.utils.rnn.pad_sequence(sentences, batch_first=True)
-    #     return padded_sentences, torch.tensor(labels)
+    def collate_fn(self, batch):
+        terms_input_ids = []
+        terms_token_type_ids = []
+        terms_attention_masks = []
+        labels = []
+
+        for sample in batch:
+            query_emb = sample[0]
+            terms_emb =sample[1]
+            labels = sample[2]
+            for term_emb in terms_emb:
+                terms_input_ids.append(term_emb['input_ids'])
+                terms_token_type_ids.append(term_emb['token_type_ids'])
+                terms_attention_masks.append(term_emb['attention_mask'])
+            # terms_input_ids.append(terms_emb['input_ids'])
+            # terms_token_type_ids.append(terms_emb['token_type_ids'])
+            # terms_attention_masks.append(terms_emb['attention_mask'])
+            labels.append(labels['labels'])
+
+        # Padding
+        input_ids = torch.nn.utils.rnn.pad_sequence(terms_input_ids, batch_first=True, padding_value=0)
+        token_type_ids = torch.nn.utils.rnn.pad_sequence(terms_token_type_ids, batch_first=True, padding_value=0)
+        attention_masks = torch.nn.utils.rnn.pad_sequence(terms_attention_masks, batch_first=True, padding_value=0)
+        labels = torch.nn.utils.rnn.pad_sequence(labels, batch_first=True, padding_value=1)
+
+        terms_encoder_dict =  {
+            'input_ids': input_ids,
+            'token_type_ids': token_type_ids,
+            'attention_masks': attention_masks,
+            'labels': labels
+        }
+        return terms_encoder_dict
 
 
 dataset = TermWeightDataset(tokenizer=tokenizer, data=data, max_length=max_len)

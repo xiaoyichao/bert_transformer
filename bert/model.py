@@ -5,6 +5,69 @@ import torch.nn.functional as F
 
 
 
+class TermWeightModelSample(nn.Module):
+    def __init__(self, distilbert, config):
+        super(TermWeightModelSample, self).__init__()
+        self.distilbert = distilbert
+        self.linear_1 = nn.Linear(1, 16)
+        self.class_layer = nn.Linear(16, config.num_labels)
+        nn.init.xavier_uniform_(self.class_layer.weight)
+        self.config = config
+
+        self.relu_layer = nn.GELU()
+        
+        # 冻结 DistilBERT 参数
+        for param in self.distilbert.parameters():
+            param.requires_grad = False
+
+        # 解冻顶层参数
+        # for param in self.distilbert.encoder.layer[-1].parameters():
+        #     param.requires_grad = True
+
+        # 确认 BERT 参数被冻结
+        for name, param in self.distilbert.named_parameters():
+            if param.requires_grad is False:
+                print("确认 BERT 参数被冻结", name, param.requires_grad)
+
+    def forward(self, query_encoder_embedding_dict, terms_encoder_embedding_dict_list, labels=None):
+        logits = []
+        preds = []
+        if labels is not None:
+            labels = labels.to(torch.long)
+
+        query_bert_outputs = self.distilbert(input_ids=query_encoder_embedding_dict["input_ids"], attention_mask=query_encoder_embedding_dict["attention_mask"], token_type_ids=query_encoder_embedding_dict["token_type_ids"])
+        query_emb = torch.mean(query_bert_outputs.last_hidden_state, dim=1)
+
+        cos_sims = []
+        for term_encoder_embedding_dict in terms_encoder_embedding_dict_list:
+            term_bert_outputs = self.distilbert(input_ids=term_encoder_embedding_dict["input_ids"], attention_mask=term_encoder_embedding_dict["attention_mask"], token_type_ids=term_encoder_embedding_dict["token_type_ids"])
+            term_emb = torch.mean(term_bert_outputs.last_hidden_state, dim=1)
+            cos_sim = F.cosine_similarity(query_emb, term_emb)
+            if cos_sim>=0.8:
+                cos_sims.append(3.0)
+            elif cos_sim>=0.5:
+                cos_sims.append(2.0)
+            else:
+                cos_sims.append(1.0)
+
+            # linear_1 = self.relu_layer(self.linear_1(cos_sim))
+            # logit = self.class_layer(linear_1)
+            # pred = torch.argmax(logit, dim=0)
+            # logits.append(logit)
+            # preds.append(pred)
+        
+        # padded_cos_sims = torch.nn.utils.rnn.pad_sequence(cos_sims, batch_first=True, padding_value=-1)
+        # padded_cos_sims = torch.nn.functional.pad(torch.tensor(cos_sims), (-1, self.config.max_term-len(cos_sims)+1), mode='constant', value=-1)
+
+        # linear_1 = self.relu_layer(self.linear_1(padded_cos_sims))
+        # logit = self.class_layer(linear_1)
+        # pred = torch.argmax(logit, dim=0)
+            # logits.append(logit)
+            # preds.append(pred)
+
+        return torch.tensor(cos_sims), torch.tensor(cos_sims), labels
+
+
 class TermWeightModel(nn.Module):
     def __init__(self, distilbert, config):
         super(TermWeightModel, self).__init__()
