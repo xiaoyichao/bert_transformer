@@ -27,11 +27,11 @@ print("device", device)
 writer = SummaryWriter('./experiment')
 
 num_labels = 3
-batch_size = 1
+batch_size = 32
 epochs = 1
 lr = 1e-5
 max_len = 32
-max_term = 10
+max_term = 8
 
 
 # 初始化Bert的参数
@@ -57,7 +57,7 @@ def read_data(query_path, query_qieci_path, labels_path):
         labels = f.read().split("\n")[1:]
         for label in labels:
             label = list(label)
-            label = [int(i) for i in label]
+            label = [int(i)-1 for i in label]
             labels_list.append(label)
 
     with open(query_path, 'r') as f:
@@ -81,11 +81,12 @@ data = read_data(query_path, query_qieci_path, labels_path)
               
 
 # 数据Dataset
-class TermWeightDataset(Dataset, ):
-    def __init__(self, tokenizer, data, max_length=32):
+class TermWeightDataset(Dataset):
+    def __init__(self, tokenizer, data, max_length=32, max_term=10):
         self.tokenizer = tokenizer
         self.data = data
         self.max_length = max_length
+        self.max_term = max_term
 
     def __len__(self,):
         return len(self.data)
@@ -120,46 +121,59 @@ class TermWeightDataset(Dataset, ):
             term_encoder_dict["token_type_ids"] = token_type_ids.to(device)
             terms_encoder_dict.append(term_encoder_dict)
         
-        terms_encoder_dict =  torch.tensor(terms_encoder_dict)
-
 
         return query_encoder_dict, terms_encoder_dict, labels
         
     def collate_fn(self, batch):
-        terms_input_ids = []
-        terms_token_type_ids = []
-        terms_attention_masks = []
+        terms_input_ids_list = []
+        terms_token_type_ids_list = []
+        terms_attention_masks_list = []
         labels = []
+        querys_encoder_dict = []
 
-        for sample in batch:
+        for i, sample in enumerate(batch):
             query_emb = sample[0]
-            terms_emb =sample[1]
-            labels = sample[2]
+            terms_emb = sample[1]
+            label = sample[2]
+            # labels_in_batch = []
+            terms_input_ids = []
+            terms_token_type_ids = []
+            terms_attention_masks = []
             for term_emb in terms_emb:
                 terms_input_ids.append(term_emb['input_ids'])
                 terms_token_type_ids.append(term_emb['token_type_ids'])
                 terms_attention_masks.append(term_emb['attention_mask'])
-            # terms_input_ids.append(terms_emb['input_ids'])
-            # terms_token_type_ids.append(terms_emb['token_type_ids'])
-            # terms_attention_masks.append(terms_emb['attention_mask'])
-            labels.append(labels['labels'])
 
-        # Padding
-        input_ids = torch.nn.utils.rnn.pad_sequence(terms_input_ids, batch_first=True, padding_value=0)
-        token_type_ids = torch.nn.utils.rnn.pad_sequence(terms_token_type_ids, batch_first=True, padding_value=0)
-        attention_masks = torch.nn.utils.rnn.pad_sequence(terms_attention_masks, batch_first=True, padding_value=0)
-        labels = torch.nn.utils.rnn.pad_sequence(labels, batch_first=True, padding_value=1)
+            padding_input_ids = torch.zeros_like(term_emb['input_ids'])
+            padding_token_type_ids = torch.zeros_like(
+                term_emb['token_type_ids'])
+            padding_attention_mask = torch.zeros_like(
+                term_emb['attention_mask'])
+            padding_label_tensor = torch.tensor([0.0])
+
+            assert len(terms_emb) == len(label), print("len(terms_emb) != len(label)", len(terms_emb), len(label))
+            for _ in range(self.max_term-len(terms_emb)):
+                terms_input_ids.append(padding_input_ids)
+                terms_token_type_ids.append(padding_token_type_ids)
+                terms_attention_masks.append(padding_attention_mask)
+                label = torch.cat((label, padding_label_tensor), dim=0)
+
+            terms_input_ids_list.append(terms_input_ids)
+            terms_token_type_ids_list.append(terms_token_type_ids)
+            terms_attention_masks_list.append(terms_attention_masks)
+            querys_encoder_dict.append(query_emb)
+            labels.append(label)
+
 
         terms_encoder_dict =  {
-            'input_ids': input_ids,
-            'token_type_ids': token_type_ids,
-            'attention_masks': attention_masks,
-            'labels': labels
+            'input_ids': terms_input_ids_list,
+            'token_type_ids': terms_token_type_ids_list,
+            'attention_masks': terms_attention_masks_list,
         }
-        return terms_encoder_dict
+        return terms_encoder_dict, querys_encoder_dict, labels
 
 
-dataset = TermWeightDataset(tokenizer=tokenizer, data=data, max_length=max_len)
+dataset = TermWeightDataset(tokenizer=tokenizer, data=data, max_length=config.max_len, max_term=config.max_term)
 encoding = dataset.__getitem__(0)
 print("encoding: ", encoding)
 print("pkl数据总长度: ", dataset.__len__())
@@ -171,8 +185,8 @@ print("train数据长度: ", train_size)
 print("valid数据长度: ", valid_size)
 train_dataset, valid_dataset  = random_split(dataset,[train_size, valid_size])
 
-train_loader =  DataLoader(train_dataset, batch_size=batch_size, shuffle=True, )
-valid_loader =  DataLoader(valid_dataset, batch_size=batch_size, shuffle=True, )
+train_loader =  DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=dataset.collate_fn)
+valid_loader =  DataLoader(valid_dataset, batch_size=batch_size, shuffle=True, collate_fn=dataset.collate_fn)
 
 
 

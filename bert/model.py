@@ -44,11 +44,11 @@ class TermWeightModelSample(nn.Module):
             term_emb = torch.mean(term_bert_outputs.last_hidden_state, dim=1)
             cos_sim = F.cosine_similarity(query_emb, term_emb)
             if cos_sim>=0.8:
-                cos_sims.append(3.0)
-            elif cos_sim>=0.5:
                 cos_sims.append(2.0)
-            else:
+            elif cos_sim>=0.5:
                 cos_sims.append(1.0)
+            else:
+                cos_sims.append(0.0)
 
             # linear_1 = self.relu_layer(self.linear_1(cos_sim))
             # logit = self.class_layer(linear_1)
