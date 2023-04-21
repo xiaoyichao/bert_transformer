@@ -95,8 +95,9 @@ class TermWeightModel(nn.Module):
     def forward(self, query_encoder_embedding_dict, terms_encoder_embedding_dict_list, labels=None):
         logits = []
         preds = []
-        if labels is not None:
-            labels = labels.to(torch.long)
+        # if labels is not None:
+        #     labels = labels.to(torch.long)
+        batch_size, seq_length = query_encoder_embedding_dict["input_ids"].size()
 
         query_bert_outputs = self.distilbert(input_ids=query_encoder_embedding_dict["input_ids"], attention_mask=query_encoder_embedding_dict["attention_mask"], token_type_ids=query_encoder_embedding_dict["token_type_ids"])
         query_emb = torch.mean(query_bert_outputs.last_hidden_state, dim=1)

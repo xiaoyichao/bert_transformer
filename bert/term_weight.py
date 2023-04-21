@@ -158,17 +158,27 @@ class TermWeightDataset(Dataset):
                 terms_attention_masks.append(padding_attention_mask)
                 label = torch.cat((label, padding_label_tensor), dim=0)
 
+            terms_input_ids = torch.stack(terms_input_ids, dim=0)
+            terms_token_type_ids = torch.stack(terms_token_type_ids, dim=0)
+            terms_attention_masks = torch.stack(terms_attention_masks, dim=0)
+
             terms_input_ids_list.append(terms_input_ids)
             terms_token_type_ids_list.append(terms_token_type_ids)
             terms_attention_masks_list.append(terms_attention_masks)
             querys_encoder_dict.append(query_emb)
             labels.append(label)
 
+        terms_input_ids_list = torch.stack(terms_input_ids_list, dim=0)
+        terms_token_type_ids_list = torch.stack(terms_token_type_ids_list, dim=0)
+        terms_attention_masks_list = torch.stack(terms_attention_masks_list, dim=0)
+        # querys_encoder_dict = torch.stack(querys_encoder_dict, dim=0)
+        labels = torch.stack(labels, dim=0)
+
 
         terms_encoder_dict =  {
             'input_ids': terms_input_ids_list,
             'token_type_ids': terms_token_type_ids_list,
-            'attention_masks': terms_attention_masks_list,
+            'attention_mask': terms_attention_masks_list,
         }
         return terms_encoder_dict, querys_encoder_dict, labels
 
@@ -237,7 +247,7 @@ def train(model, loader, optimizer, criterion, epoch):
             logits, preds, _ = model(query_encoder_embedding_dict, terms_encoder_embedding_dict_list, labels)
             term_len = len(labels)
             for logit, label in zip(logits, labels):
-                tmp_loss = criterion(logit.view(config.num_labels), label)
+                tmp_loss = criterion(logit.view(-1, config.num_labels), label)
                 loss+=tmp_loss
 
         optimizer.zero_grad()
