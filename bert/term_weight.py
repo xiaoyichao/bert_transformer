@@ -99,7 +99,7 @@ class TermWeightDataset(Dataset, ):
         input_ids = torch.squeeze(encoded_dict['input_ids'])
         attention_mask = torch.squeeze(encoded_dict["attention_mask"])
         token_type_ids = torch.squeeze(encoded_dict["token_type_ids"])
-        labels = torch.squeeze(torch.tensor(labels, dtype=torch.float64))
+        labels = torch.tensor(labels, dtype=torch.float64)
 
         query_encoder_dict = OrderedDict()
 

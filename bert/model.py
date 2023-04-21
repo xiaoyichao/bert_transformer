@@ -65,7 +65,7 @@ class TermWeightModelSample(nn.Module):
             # logits.append(logit)
             # preds.append(pred)
 
-        return torch.tensor(cos_sims), torch.tensor(cos_sims), labels
+        return torch.unsqueeze(torch.tensor(cos_sims), 0), torch.unsqueeze(torch.tensor(cos_sims), 0), labels
 
 
 class TermWeightModel(nn.Module):
