@@ -3,7 +3,6 @@ __pycache__
 *.out
 *.log
 *.*log*.*
-test.*
 *.pth
 runs
 models
