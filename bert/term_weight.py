@@ -26,7 +26,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print("device", device)
 writer = SummaryWriter('./experiment')
 
-num_labels = 4
+num_labels = 3
 batch_size = 32
 epochs = 100
 lr = 1e-6
@@ -134,6 +134,7 @@ class TermWeightDataset(Dataset):
 
         terms_encoder_dict_list = []
         labels = []
+        masks = []
         
         queries_input_ids_list = []
         queries_token_type_ids_list = []
@@ -147,18 +148,21 @@ class TermWeightDataset(Dataset):
             terms_input_ids = []
             terms_token_type_ids = []
             terms_attention_masks = []
+            mask = []
             for term_emb in terms_emb:
                 terms_input_ids.append(term_emb['input_ids'])
                 terms_token_type_ids.append(term_emb['token_type_ids'])
                 terms_attention_masks.append(term_emb['attention_mask'])
+                mask.append(torch.tensor([1]))
 
             padding_input_ids = torch.zeros_like(term_emb['input_ids']).to(device)
             padding_token_type_ids = torch.zeros_like(
                 term_emb['token_type_ids']).to(device)
             padding_attention_mask = torch.zeros_like(
                 term_emb['attention_mask']).to(device)
-            padding_label_tensor = torch.tensor([0]).to(device)
-            # padding_label_tensor = torch.tensor([-1]).to(device)
+            # padding_label_tensor = torch.tensor([0]).to(device)
+            padding_label_tensor = torch.tensor([-1]).to(device)
+
 
             assert len(terms_emb) == len(label), print("len(terms_emb) != len(label)", len(terms_emb), len(label))
             for _ in range(self.max_term_num-len(terms_emb)):
@@ -166,10 +170,12 @@ class TermWeightDataset(Dataset):
                 terms_token_type_ids.append(padding_token_type_ids)
                 terms_attention_masks.append(padding_attention_mask)
                 label = torch.cat((label, padding_label_tensor), dim=0)
+                mask.append(torch.tensor([0]))
 
             terms_input_ids = torch.stack(terms_input_ids, dim=0)
             terms_token_type_ids = torch.stack(terms_token_type_ids, dim=0)
             terms_attention_masks = torch.stack(terms_attention_masks, dim=0)
+            mask = torch.stack(mask, dim=0)
 
             # term_encoder_dict = {
             # 'input_ids': terms_input_ids,
@@ -187,7 +193,7 @@ class TermWeightDataset(Dataset):
             queries_token_type_ids_list.append(query_emb['token_type_ids'])
             queries_attention_masks_list.append(query_emb['attention_mask'])
 
-
+            masks.append(mask)
             labels.append(label)
 
         queries_input_ids_list = torch.stack(queries_input_ids_list, dim=0)
@@ -198,7 +204,9 @@ class TermWeightDataset(Dataset):
         terms_token_type_ids_list = torch.stack(terms_token_type_ids_list, dim=0)
         terms_attention_masks_list = torch.stack(terms_attention_masks_list, dim=0)
 
-        labels = torch.stack(labels, dim=0)
+        labels = torch.stack(labels, dim=0).to(device)
+        masks = torch.stack(masks, dim=0).to(device)
+        masks = torch.squeeze(masks)
 
         queries_encoder_dict =  {
             'input_ids': queries_input_ids_list,
@@ -212,7 +220,7 @@ class TermWeightDataset(Dataset):
             'attention_mask': terms_attention_masks_list,
         }
         
-        return queries_encoder_dict, labels, terms_encoder_dict
+        return queries_encoder_dict, labels, terms_encoder_dict, masks
 
 
 dataset = TermWeightDataset(tokenizer=tokenizer, data=data, query_max_len=config.query_max_len, term_max_len=config.term_max_len, max_term_num=config.max_term_num)
@@ -251,7 +259,8 @@ print("model.state_dict().keys()", list(model.state_dict().keys()))
 
 # define the optimizer and loss function
 optimizer = optim.Adam(model.parameters(), lr=lr)
-criterion = nn.CrossEntropyLoss()
+# criterion = nn.CrossEntropyLoss()
+criterion = nn.CrossEntropyLoss(ignore_index=-1)
 
 
 # define the training loop
@@ -261,24 +270,32 @@ def train(model, loader, optimizer, criterion, epoch):
     epoch_acc = 0
     for batch_idx, batch in enumerate(loader):
 
-        query_encoder_embedding_dict, labels, terms_encoder_dict  = batch[0], batch[1], batch[2]
+        query_encoder_embedding_dict, labels, terms_encoder_dict, masks  = batch[0], batch[1], batch[2], batch[3]
 
-        # with autocast():
-        logits, preds = model(query_encoder_embedding_dict, terms_encoder_dict)
-        labels = labels.view(-1)
-        mask = (labels != -1).float()
-        loss = criterion(logits, labels)
-        # loss = (loss * mask).sum() / mask.sum()
+        with autocast():
+            logits, preds = model(query_encoder_embedding_dict, terms_encoder_dict)
+            labels = labels.view(-1)
+            masks = masks.view(-1)
+            # loss = criterion(logits, labels)
+            loss = torch.tensor(0.0).to(device)
+            target_for_loss = torch.where(labels != -1, labels, torch.zeros_like(labels))
+            for logit, pred, label, mask in zip(logits, preds, labels, masks):
+                if mask !=0:
+                    loss += criterion(logit, label)
+                else:
+                    pass
+                    
+            loss = loss / masks.sum()
 
         
         acc = accuracy_score(labels.tolist(), preds.tolist())
-        # acc = (acc * mask).sum() / mask.sum()
+        acc = (acc * masks).sum() / masks.sum()
         # acc = accuracy_score(labels.tolist(), preds)
-        # scaler.scale(loss).backward()
-        # scaler.step(optimizer)
-        # scaler.update()
-        loss.backward()
-        optimizer.step()
+        scaler.scale(loss).backward()
+        scaler.step(optimizer)
+        scaler.update()
+        # loss.backward()
+        # optimizer.step()
         optimizer.zero_grad()
         epoch_loss += loss.item()
         epoch_acc += acc
