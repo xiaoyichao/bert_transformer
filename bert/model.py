@@ -94,8 +94,8 @@ class TermWeightModel(nn.Module):
                 print("确认 BERT 参数被冻结", name, param.requires_grad)
 
     def forward(self, query_encoder_embedding_dict, terms_encoder_dict=None):
-        logits = []
-        preds = []
+        # logits = []
+        # preds = []
 
         query_bert_outputs = self.distilbert(input_ids=query_encoder_embedding_dict["input_ids"], attention_mask=query_encoder_embedding_dict["attention_mask"], token_type_ids=query_encoder_embedding_dict["token_type_ids"]) # [batch_size, query_seq_len, emb_size]
         query_emb = torch.mean(query_bert_outputs.last_hidden_state, dim=1) # [batch_size, emb_size]
@@ -117,6 +117,17 @@ class TermWeightModel(nn.Module):
 
         logits = self.class_layer(linear_1)
         preds = torch.argmax(logits, dim=1)
+
+        # preds = []
+        # for cos_sim in cos_sims:
+        #     cos_sim = cos_sim.tolist()[0]
+        #     if cos_sim>=0.8:
+        #         preds.append(2.0)
+        #     elif cos_sim>=0.5:
+        #         preds.append(1.0)
+        #     else:
+        #         preds.append(0.0)
+
     
         return logits, preds
 

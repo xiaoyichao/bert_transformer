@@ -26,14 +26,13 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print("device", device)
 writer = SummaryWriter('./experiment')
 
-num_labels = 3
-batch_size = 64
+num_labels = 4
+batch_size = 32
 epochs = 100
-lr = 1e-5
-# max_len = 32
+lr = 1e-6
 query_max_len = 32
 term_max_len = 8
-max_term_num = 10
+max_term_num = 8
 
 
 # 初始化Bert的参数
@@ -105,14 +104,13 @@ class TermWeightDataset(Dataset):
         input_ids = torch.squeeze(encoded_dict['input_ids'])
         attention_mask = torch.squeeze(encoded_dict["attention_mask"])
         token_type_ids = torch.squeeze(encoded_dict["token_type_ids"])
-        labels = torch.tensor(labels, dtype=torch.int64)
+        labels = torch.tensor(labels, dtype=torch.int64).to(device)
 
         query_encoder_dict = OrderedDict()
 
         query_encoder_dict["input_ids"] = input_ids.to(device)
         query_encoder_dict["attention_mask"] = attention_mask.to(device)
         query_encoder_dict["token_type_ids"] = token_type_ids.to(device)
-        # query_encoder_dict["label"] = labels.to(device)
 
         terms_encoder_dict = []
         for term in terms:
@@ -154,12 +152,13 @@ class TermWeightDataset(Dataset):
                 terms_token_type_ids.append(term_emb['token_type_ids'])
                 terms_attention_masks.append(term_emb['attention_mask'])
 
-            padding_input_ids = torch.zeros_like(term_emb['input_ids'])
+            padding_input_ids = torch.zeros_like(term_emb['input_ids']).to(device)
             padding_token_type_ids = torch.zeros_like(
-                term_emb['token_type_ids'])
+                term_emb['token_type_ids']).to(device)
             padding_attention_mask = torch.zeros_like(
-                term_emb['attention_mask'])
-            padding_label_tensor = torch.tensor([0])
+                term_emb['attention_mask']).to(device)
+            padding_label_tensor = torch.tensor([0]).to(device)
+            # padding_label_tensor = torch.tensor([-1]).to(device)
 
             assert len(terms_emb) == len(label), print("len(terms_emb) != len(label)", len(terms_emb), len(label))
             for _ in range(self.max_term_num-len(terms_emb)):
@@ -222,7 +221,7 @@ print("encoding: ", encoding)
 print("pkl数据总长度: ", dataset.__len__())
 
 
-train_size = int(0.8*dataset.__len__())
+train_size = int(0.9*dataset.__len__())
 valid_size = dataset.__len__() - train_size
 print("train数据长度: ", train_size)
 print("valid数据长度: ", valid_size)
@@ -235,8 +234,7 @@ valid_loader =  DataLoader(valid_dataset, batch_size=batch_size, shuffle=True, c
 
 # 创建模型
 model = TermWeightModel(distil_bert, config)
-scaler = GradScaler()
-model = model.to(device)
+
 
 # print_size_of_model(model)
 # model = model.half()
@@ -265,16 +263,23 @@ def train(model, loader, optimizer, criterion, epoch):
 
         query_encoder_embedding_dict, labels, terms_encoder_dict  = batch[0], batch[1], batch[2]
 
-        with autocast():
-            logits, preds = model(query_encoder_embedding_dict, terms_encoder_dict)
-            labels = labels.view(-1)
-            loss = criterion(logits.view(-1 ,config.num_labels), labels)
+        # with autocast():
+        logits, preds = model(query_encoder_embedding_dict, terms_encoder_dict)
+        labels = labels.view(-1)
+        mask = (labels != -1).float()
+        loss = criterion(logits, labels)
+        # loss = (loss * mask).sum() / mask.sum()
 
-        optimizer.zero_grad()
+        
         acc = accuracy_score(labels.tolist(), preds.tolist())
-        scaler.scale(loss).backward()
-        scaler.step(optimizer)
-        scaler.update()
+        # acc = (acc * mask).sum() / mask.sum()
+        # acc = accuracy_score(labels.tolist(), preds)
+        # scaler.scale(loss).backward()
+        # scaler.step(optimizer)
+        # scaler.update()
+        loss.backward()
+        optimizer.step()
+        optimizer.zero_grad()
         epoch_loss += loss.item()
         epoch_acc += acc
 
@@ -300,6 +305,7 @@ def evaluate(model, loader, criterion):
             loss = criterion(logits.view(-1 ,config.num_labels), labels)
 
             acc = accuracy_score(labels.tolist(), preds.tolist())
+            # acc = accuracy_score(labels.tolist(), preds)
             epoch_loss += loss.item()
             epoch_acc += acc
             writer.add_scalar('valid loss', loss.item(), len(loader) * epoch + batch_idx)
