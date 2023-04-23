@@ -28,7 +28,7 @@ writer = SummaryWriter('./experiment')
 
 num_labels = 3
 batch_size = 64
-epochs = 1
+epochs = 100
 lr = 1e-5
 # max_len = 32
 query_max_len = 32
@@ -172,13 +172,13 @@ class TermWeightDataset(Dataset):
             terms_token_type_ids = torch.stack(terms_token_type_ids, dim=0)
             terms_attention_masks = torch.stack(terms_attention_masks, dim=0)
 
-            term_encoder_dict = {
-            'input_ids': terms_input_ids,
-            'token_type_ids': terms_token_type_ids,
-            'attention_mask': terms_attention_masks,
-            }    
+            # term_encoder_dict = {
+            # 'input_ids': terms_input_ids,
+            # 'token_type_ids': terms_token_type_ids,
+            # 'attention_mask': terms_attention_masks,
+            # }    
 
-            terms_encoder_dict_list.append(term_encoder_dict)      
+            # terms_encoder_dict_list.append(term_encoder_dict)      
 
             terms_input_ids_list.append(terms_input_ids)
             terms_token_type_ids_list.append(terms_token_type_ids)
@@ -213,7 +213,7 @@ class TermWeightDataset(Dataset):
             'attention_mask': terms_attention_masks_list,
         }
         
-        return queries_encoder_dict, terms_encoder_dict_list, labels, terms_encoder_dict
+        return queries_encoder_dict, labels, terms_encoder_dict
 
 
 dataset = TermWeightDataset(tokenizer=tokenizer, data=data, query_max_len=config.query_max_len, term_max_len=config.term_max_len, max_term_num=config.max_term_num)
@@ -263,21 +263,10 @@ def train(model, loader, optimizer, criterion, epoch):
     epoch_acc = 0
     for batch_idx, batch in enumerate(loader):
 
-        query_encoder_embedding_dict, terms_encoder_embedding_dict_list, labels, terms_encoder_dict  = batch[0], batch[1], batch[2] , batch[3]
-        # labels = query_encoder_embedding_dict["label"]
-
-        # optimizer.zero_grad()
-        # logits, pred = model(encoder_embedding)
-        # loss = criterion(logits.view(-1, config.num_labels), labels)
-        # acc = accuracy_score(labels.tolist(), pred.tolist())
-        # loss.backward()
-        # optimizer.step()
-        # epoch_loss += loss.item()
-        # epoch_acc += acc
+        query_encoder_embedding_dict, labels, terms_encoder_dict  = batch[0], batch[1], batch[2]
 
         with autocast():
-            loss = 0
-            logits, preds = model(query_encoder_embedding_dict, terms_encoder_embedding_dict_list, terms_encoder_dict)
+            logits, preds = model(query_encoder_embedding_dict, terms_encoder_dict)
             labels = labels.view(-1)
             loss = criterion(logits.view(-1 ,config.num_labels), labels)
 
@@ -304,12 +293,13 @@ def evaluate(model, loader, criterion):
     epoch_acc = 0
     with torch.no_grad():
         for batch_idx, batch in enumerate(loader):
-            encoder_embedding = batch
-            labels = encoder_embedding["label"]
+            query_encoder_embedding_dict, labels, terms_encoder_dict  = batch[0], batch[1], batch[2]
             
-            logits, pred = model(encoder_embedding)
-            loss = criterion(logits.view(-1, config.num_labels), labels)
-            acc = accuracy_score(labels.tolist(), pred.tolist())
+            logits, preds = model(query_encoder_embedding_dict, terms_encoder_dict)
+            labels = labels.view(-1)
+            loss = criterion(logits.view(-1 ,config.num_labels), labels)
+
+            acc = accuracy_score(labels.tolist(), preds.tolist())
             epoch_loss += loss.item()
             epoch_acc += acc
             writer.add_scalar('valid loss', loss.item(), len(loader) * epoch + batch_idx)
@@ -320,9 +310,9 @@ def evaluate(model, loader, criterion):
 
 for epoch in range(epochs):
     train_loss, train_acc = train(model,train_loader,optimizer, criterion, epoch)
-    # test_loss, test_acc = evaluate(model, valid_loader, criterion)
+    test_loss, test_acc = evaluate(model, valid_loader, criterion)
     
     print(f"Epoch {epoch+1}")
     print(f"\tTrain Loss: {train_loss:.3f} | Train Acc: {train_acc*100:.2f}%")
-    # print(f"\tValid Loss: {test_loss:.3f} | Test Acc: {test_acc*100:.2f}%")
+    print(f"\tValid Loss: {test_loss:.3f} | Test Acc: {test_acc*100:.2f}%")
 
