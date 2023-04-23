@@ -27,19 +27,23 @@ print("device", device)
 writer = SummaryWriter('./experiment')
 
 num_labels = 3
-batch_size = 32
+batch_size = 64
 epochs = 1
 lr = 1e-5
-max_len = 32
-max_term = 8
+# max_len = 32
+query_max_len = 32
+term_max_len = 8
+max_term_num = 10
 
 
 # 初始化Bert的参数
 tokenizer = BertTokenizer.from_pretrained(my_bert_path) 
 config = AutoConfig.from_pretrained(my_bert_path, num_labels=num_labels)
 distil_bert = AutoModel.from_pretrained(my_bert_path)
-config.max_len = max_len
-config.max_term = max_term
+config.query_max_len = query_max_len
+config.term_max_len = term_max_len
+config.max_term_num = max_term_num
+
 
 # 读取数据
 def read_data(query_path, query_qieci_path, labels_path):
@@ -82,11 +86,12 @@ data = read_data(query_path, query_qieci_path, labels_path)
 
 # 数据Dataset
 class TermWeightDataset(Dataset):
-    def __init__(self, tokenizer, data, max_length=32, max_term=10):
+    def __init__(self, tokenizer, data, query_max_len=32, term_max_len=8, max_term_num=10):
         self.tokenizer = tokenizer
         self.data = data
-        self.max_length = max_length
-        self.max_term = max_term
+        self.query_max_len = query_max_len
+        self.term_max_len = term_max_len
+        self.max_term_num = max_term_num
 
     def __len__(self,):
         return len(self.data)
@@ -96,11 +101,11 @@ class TermWeightDataset(Dataset):
         query = self.data[index][0]
         terms = self.data[index][1]
         labels = self.data[index][2]
-        encoded_dict = self.tokenizer(query, padding = 'max_length', max_length = self.max_length, truncation=True, return_tensors='pt')
+        encoded_dict = self.tokenizer(query, padding = 'max_length', max_length = self.query_max_len, truncation=True, return_tensors='pt')
         input_ids = torch.squeeze(encoded_dict['input_ids'])
         attention_mask = torch.squeeze(encoded_dict["attention_mask"])
         token_type_ids = torch.squeeze(encoded_dict["token_type_ids"])
-        labels = torch.tensor(labels, dtype=torch.float64)
+        labels = torch.tensor(labels, dtype=torch.int64)
 
         query_encoder_dict = OrderedDict()
 
@@ -111,7 +116,7 @@ class TermWeightDataset(Dataset):
 
         terms_encoder_dict = []
         for term in terms:
-            encoded_dict = self.tokenizer(term, padding = 'max_length', max_length = self.max_length, truncation=True, return_tensors='pt')
+            encoded_dict = self.tokenizer(term, padding = 'max_length', max_length = self.term_max_len, truncation=True, return_tensors='pt')
             input_ids = torch.squeeze(encoded_dict['input_ids'])
             attention_mask = torch.squeeze(encoded_dict["attention_mask"])
             token_type_ids = torch.squeeze(encoded_dict["token_type_ids"])
@@ -128,8 +133,13 @@ class TermWeightDataset(Dataset):
         terms_input_ids_list = []
         terms_token_type_ids_list = []
         terms_attention_masks_list = []
+
+        terms_encoder_dict_list = []
         labels = []
-        querys_encoder_dict = []
+        
+        queries_input_ids_list = []
+        queries_token_type_ids_list = []
+        queries_attention_masks_list = []
 
         for i, sample in enumerate(batch):
             query_emb = sample[0]
@@ -149,10 +159,10 @@ class TermWeightDataset(Dataset):
                 term_emb['token_type_ids'])
             padding_attention_mask = torch.zeros_like(
                 term_emb['attention_mask'])
-            padding_label_tensor = torch.tensor([0.0])
+            padding_label_tensor = torch.tensor([0])
 
             assert len(terms_emb) == len(label), print("len(terms_emb) != len(label)", len(terms_emb), len(label))
-            for _ in range(self.max_term-len(terms_emb)):
+            for _ in range(self.max_term_num-len(terms_emb)):
                 terms_input_ids.append(padding_input_ids)
                 terms_token_type_ids.append(padding_token_type_ids)
                 terms_attention_masks.append(padding_attention_mask)
@@ -162,28 +172,51 @@ class TermWeightDataset(Dataset):
             terms_token_type_ids = torch.stack(terms_token_type_ids, dim=0)
             terms_attention_masks = torch.stack(terms_attention_masks, dim=0)
 
+            term_encoder_dict = {
+            'input_ids': terms_input_ids,
+            'token_type_ids': terms_token_type_ids,
+            'attention_mask': terms_attention_masks,
+            }    
+
+            terms_encoder_dict_list.append(term_encoder_dict)      
+
             terms_input_ids_list.append(terms_input_ids)
             terms_token_type_ids_list.append(terms_token_type_ids)
             terms_attention_masks_list.append(terms_attention_masks)
-            querys_encoder_dict.append(query_emb)
+
+            queries_input_ids_list.append(query_emb['input_ids'])
+            queries_token_type_ids_list.append(query_emb['token_type_ids'])
+            queries_attention_masks_list.append(query_emb['attention_mask'])
+
+
             labels.append(label)
+
+        queries_input_ids_list = torch.stack(queries_input_ids_list, dim=0)
+        queries_token_type_ids_list = torch.stack(queries_token_type_ids_list, dim=0)
+        queries_attention_masks_list = torch.stack(queries_attention_masks_list, dim=0)
 
         terms_input_ids_list = torch.stack(terms_input_ids_list, dim=0)
         terms_token_type_ids_list = torch.stack(terms_token_type_ids_list, dim=0)
         terms_attention_masks_list = torch.stack(terms_attention_masks_list, dim=0)
-        # querys_encoder_dict = torch.stack(querys_encoder_dict, dim=0)
+
         labels = torch.stack(labels, dim=0)
 
-
+        queries_encoder_dict =  {
+            'input_ids': queries_input_ids_list,
+            'token_type_ids': queries_token_type_ids_list,
+            'attention_mask': queries_attention_masks_list,
+        }
+    
         terms_encoder_dict =  {
             'input_ids': terms_input_ids_list,
             'token_type_ids': terms_token_type_ids_list,
             'attention_mask': terms_attention_masks_list,
         }
-        return terms_encoder_dict, querys_encoder_dict, labels
+        
+        return queries_encoder_dict, terms_encoder_dict_list, labels, terms_encoder_dict
 
 
-dataset = TermWeightDataset(tokenizer=tokenizer, data=data, max_length=config.max_len, max_term=config.max_term)
+dataset = TermWeightDataset(tokenizer=tokenizer, data=data, query_max_len=config.query_max_len, term_max_len=config.term_max_len, max_term_num=config.max_term_num)
 encoding = dataset.__getitem__(0)
 print("encoding: ", encoding)
 print("pkl数据总长度: ", dataset.__len__())
@@ -230,7 +263,7 @@ def train(model, loader, optimizer, criterion, epoch):
     epoch_acc = 0
     for batch_idx, batch in enumerate(loader):
 
-        query_encoder_embedding_dict, terms_encoder_embedding_dict_list, labels = batch[0], batch[1], batch[2]
+        query_encoder_embedding_dict, terms_encoder_embedding_dict_list, labels, terms_encoder_dict  = batch[0], batch[1], batch[2] , batch[3]
         # labels = query_encoder_embedding_dict["label"]
 
         # optimizer.zero_grad()
@@ -244,11 +277,9 @@ def train(model, loader, optimizer, criterion, epoch):
 
         with autocast():
             loss = 0
-            logits, preds, _ = model(query_encoder_embedding_dict, terms_encoder_embedding_dict_list, labels)
-            term_len = len(labels)
-            for logit, label in zip(logits, labels):
-                tmp_loss = criterion(logit.view(-1, config.num_labels), label)
-                loss+=tmp_loss
+            logits, preds = model(query_encoder_embedding_dict, terms_encoder_embedding_dict_list, terms_encoder_dict)
+            labels = labels.view(-1)
+            loss = criterion(logits.view(-1 ,config.num_labels), labels)
 
         optimizer.zero_grad()
         acc = accuracy_score(labels.tolist(), preds.tolist())

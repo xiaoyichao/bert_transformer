@@ -51,27 +51,29 @@ data_dir_path = "/data/search_opt_model/topk_opt/rank_fine_row_cv_userprofile"
 
 # load tokenizer and model
 # my_bert_path = "/data/search_opt_model/topk_opt/distilbert/distilbert_torch"
-my_bert_path = "/data/xiaoyichao/projects/bert_transformer/bert/models/bert-base-cased-hhz"
+# my_bert_path = "/data/xiaoyichao/projects/bert_transformer/bert/models/bert-base-cased-hhz"
+my_bert_path = "./models/distilbert_torch"
 # my_bert_path = "bert-base-chinese"
 
 # 读取数据
 # all_pkl_names, all_pkl_paths, _ = common4bert.get_models(data_dir_path, False)
 # pkl_path = all_pkl_paths[-1]
-with open("data/cleared_data.tsv") as f:
-    lines = f.readlines()
-    data = []
-    label_map = {}
-    next_label_id = 0
-    for line in lines:
-        query, intent = line.strip().split("\t")
-        intent = intent.split("--")[0]
-        if intent not in label_map:
-            label_map[intent] = next_label_id
-            next_label_id += 1
+# with open("data/cleared_data.tsv") as f:
+#     lines = f.readlines()
+#     data = []
+#     label_map = {}
+#     next_label_id = 0
+#     for line in lines:
+#         query, intent = line.strip().split("\t")
+#         intent = intent.split("--")[0]
+#         if intent not in label_map:
+#             label_map[intent] = next_label_id
+#             next_label_id += 1
             
-        if label_map[intent] in [2, 3, 4]:
-            data.append([query, label_map[intent]])
-num_labels = len(label_map)
+#         if label_map[intent] in [2, 3, 4]:
+#             data.append([query, label_map[intent]])
+# num_labels = len(label_map)
+num_labels = 3
 
 
 tokenizer = BertTokenizer.from_pretrained(my_bert_path) 
@@ -93,7 +95,7 @@ def print_size_of_model(model):
 
 
 # data = [["客厅", 0] for _ in range(1000)]
-# data = [["客厅", 0], ["厨房", 0], ["卫生间", 0], ["冰箱", 0], ["洗衣机", 0], ["电视", 0],["客厅", 0], ["厨房", 0], ["卫生间", 0], ["冰箱", 0], ["洗衣机", 0], ["电视", 0]] 
+data = [["客厅", 0], ["厨房", 0], ["卫生间", 0], ["冰箱", 1], ["洗衣机", 1], ["电视", 1],["客厅", 0], ["厨房", 0], ["卫生间", 0], ["冰箱", 0], ["洗衣机", 0], ["汽车", 2]] 
 dataset = IntentDataset(tokenizer=tokenizer, data=data)
 encoding = dataset.__getitem__(0)
 print("encoding: ", encoding)
