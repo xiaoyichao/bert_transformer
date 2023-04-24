@@ -3,10 +3,9 @@ __pycache__
 *.out
 *.log
 *.*log*.*
-test.*
-data
 *.pth
 runs
+models
 bert/models
 bert/experiment_log
 bert/experiment
