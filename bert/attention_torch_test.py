@@ -20,7 +20,7 @@ def transpose_for_score(from_tensor, batch_size, from_seq_len, num_attention_hea
 
 def attention(from_tensor, to_tensor, to_mask=None):
     from_tensor = torch.reshape(from_tensor, (-1, width)) #[B*F, N*H]
-    to_tensor = torch.reshape(to_tensor, (-1, width))
+    to_tensor = torch.reshape(to_tensor, (-1, width)) 
 
     unit_num = num_attention_heads*attntion_head_size
     q_layer = nn.Linear(width, unit_num)#[B*F, N*H]
@@ -36,40 +36,40 @@ def attention(from_tensor, to_tensor, to_mask=None):
 
     attention_score = torch.matmul(q, torch.transpose(k, -1, -2))#[B,N, F,H] * [B,N, H,T] => [B,N,F,T]
     d_sqrt = 1/math.sqrt(width)
-    attention_score = torch.mul(attention_score, d_sqrt)
+    attention_score = torch.mul(attention_score, d_sqrt) # [B,N,F,T]
     
     if to_mask is not None: #
         adder = -(1-to_mask)*100000
-        # B,T,F => B,1,T,F
+        # B,F,T => [B, 1, F, T]
         adder = torch.unsqueeze(adder, 1)
 
-        # [B,N,F,T] + B,1,T,F
+        # [B,N,F,T] + [B, 1, F, T]
         attention_score = attention_score+adder
         
-    attention_score = F.softmax(attention_score)
+    attention_score = F.softmax(attention_score) #[B,N,F,T] 
 
 
     v = torch.reshape(v, (batch_size, to_seq_len, num_attention_heads, attntion_head_size)) #[B, T, N, H]
     v = torch.transpose(v, 2, 1)#[B,N,T,H]
     y = torch.matmul(attention_score, v)#[B,N,F,T]* [B,N,T,H] => [B,N,F,H]
 
-    y = torch.transpose(y, 2, 1) # [B,F,N,H]
+    y = torch.transpose(y, 1,2) # [B,F,N,H]
     y = torch.reshape(y, (batch_size, from_seq_len, num_attention_heads*attntion_head_size))
 
     return y
 
 
 def create_attention_mask(from_tensor, to_mask):
-    # B, T => B,T,1
-    # B, F => B,1,F
-    # B,T,1 * B,1,F =>B,T,F 
+    # B, T => B,1,T
+    # B, F => B,F,1
+    # B,F,1 * B,1,T =>B,F,T
 
     batch_size = from_tensor.shape[0]
     from_seq_len = from_tensor.shape[1]
     to_seq_len = to_mask.shape[1]
-    to_mask = torch.reshape(to_mask, (batch_size, to_seq_len, 1))
-    boardcast_ones = torch.ones(batch_size, 1, from_seq_len)
-    attention_mask = to_mask*boardcast_ones
+    to_mask = torch.reshape(to_mask, (batch_size, 1, to_seq_len))
+    boardcast_ones = torch.ones(batch_size, from_seq_len, 1)
+    attention_mask = boardcast_ones*to_mask
     return attention_mask
 
     
