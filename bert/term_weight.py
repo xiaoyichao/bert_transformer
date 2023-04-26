@@ -15,6 +15,8 @@ from sklearn.metrics import accuracy_score, ndcg_score
 from sklearn.model_selection import train_test_split
 from torch.utils.tensorboard import SummaryWriter
 from torch.cuda.amp import GradScaler, autocast
+from sklearn.metrics import f1_score
+
 
 
 my_bert_path = "./models/distilbert_torch"
@@ -299,7 +301,6 @@ def train(model, loader, optimizer, criterion, epoch):
         optimizer.zero_grad()
         epoch_loss += loss.item()
         epoch_acc += acc
-
             
         # ...log the running loss
         writer.add_scalar('training loss', loss.item(), len(loader) * epoch + batch_idx)
@@ -309,10 +310,13 @@ def train(model, loader, optimizer, criterion, epoch):
     return epoch_loss / len(loader), epoch_acc / len(loader)
 
 # define the evaluation loop
+from sklearn.metrics import f1_score
+
 def evaluate(model, loader, criterion):
     model.eval()
     epoch_loss = 0
     epoch_acc = 0
+    epoch_f1 = 0
     with torch.no_grad():
         for batch_idx, batch in enumerate(loader):
             query_encoder_embedding_dict, labels, terms_encoder_dict  = batch[0], batch[1], batch[2]
@@ -322,20 +326,25 @@ def evaluate(model, loader, criterion):
             loss = criterion(logits.view(-1 ,config.num_labels), labels)
 
             acc = accuracy_score(labels.tolist(), preds.tolist())
-            # acc = accuracy_score(labels.tolist(), preds)
+            f1 = f1_score(labels.cpu().numpy(), preds.cpu().numpy(), average='macro')
+            
             epoch_loss += loss.item()
             epoch_acc += acc
+            epoch_f1 += f1
+            
             writer.add_scalar('valid loss', loss.item(), len(loader) * epoch + batch_idx)
-
             writer.add_scalar('valid acc', acc, len(loader) * epoch + batch_idx)
-    return epoch_loss / len(loader), epoch_acc / len(loader)
+            writer.add_scalar('valid f1', f1, len(loader) * epoch + batch_idx)
+            
+    return epoch_loss / len(loader), epoch_acc / len(loader), epoch_f1 / len(loader)
+
 
 
 for epoch in range(epochs):
     train_loss, train_acc = train(model,train_loader,optimizer, criterion, epoch)
-    test_loss, test_acc = evaluate(model, valid_loader, criterion)
+    test_loss, test_acc, f1 = evaluate(model, valid_loader, criterion)
     
     print(f"Epoch {epoch+1}")
     print(f"\tTrain Loss: {train_loss:.3f} | Train Acc: {train_acc*100:.2f}%")
-    print(f"\tValid Loss: {test_loss:.3f} | Test Acc: {test_acc*100:.2f}%")
+    print(f"\tValid Loss: {test_loss:.3f} | Test Acc: {test_acc*100:.2f}%", f1)
 
