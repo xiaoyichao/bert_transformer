@@ -39,16 +39,23 @@ class TermWeightModelSample(nn.Module):
         query_emb = torch.mean(query_bert_outputs.last_hidden_state, dim=1)
 
         cos_sims = []
+        preds = []
+        
         for term_encoder_embedding_dict in terms_encoder_embedding_dict_list:
             term_bert_outputs = self.distilbert(input_ids=term_encoder_embedding_dict["input_ids"], attention_mask=term_encoder_embedding_dict["attention_mask"], token_type_ids=term_encoder_embedding_dict["token_type_ids"])
             term_emb = torch.mean(term_bert_outputs.last_hidden_state, dim=1)
             cos_sim = F.cosine_similarity(query_emb, term_emb)
-            if cos_sim>=0.8:
-                cos_sims.append(2.0)
-            elif cos_sim>=0.5:
-                cos_sims.append(1.0)
+            cos_sims.append(cos_sim)
+            if cos_sim>=0.98:
+                preds.append(3)
+            elif cos_sim>=0.9:
+                preds.append(2)
             else:
-                cos_sims.append(0.0)
+                preds.append(1)
+        pred_max =  max(preds)
+        if pred_max <=2:
+            preds = [cosine +1 for cosine in cos_sims]
+
 
             # linear_1 = self.relu_layer(self.linear_1(cos_sim))
             # logit = self.class_layer(linear_1)
@@ -65,7 +72,7 @@ class TermWeightModelSample(nn.Module):
             # logits.append(logit)
             # preds.append(pred)
 
-        return torch.unsqueeze(torch.tensor(cos_sims), 0), torch.unsqueeze(torch.tensor(cos_sims), 0), labels
+        return torch.unsqueeze(torch.tensor(cos_sims), 0), torch.unsqueeze(torch.tensor(preds), 0), labels
 
 
 class TermWeightModel(nn.Module):
@@ -117,6 +124,7 @@ class TermWeightModel(nn.Module):
 
         logits = self.class_layer(linear_1)
         preds = torch.argmax(logits, dim=1)
+        preds_max = max(preds)
 
         # preds = []
         # for cos_sim in cos_sims:

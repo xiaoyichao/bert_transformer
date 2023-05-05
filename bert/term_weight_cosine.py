@@ -15,10 +15,11 @@ from sklearn.metrics import accuracy_score, ndcg_score
 from sklearn.model_selection import train_test_split
 from torch.utils.tensorboard import SummaryWriter
 from torch.cuda.amp import GradScaler, autocast
+import warnings
+warnings.filterwarnings("ignore", message="User provided device_type of 'cuda', but CUDA is not available. Disabling")
 
-
-# my_bert_path = "./models/distilbert_torch"
-my_bert_path = "bert-base-chinese"
+my_bert_path = "./models/distilbert_torch"
+# my_bert_path = "bert-base-chinese"
 query_path = "./data/term_weight/query.txt"
 query_qieci_path = "./data/term_weight/term_weight_query_qieci.txt"
 labels_path = "./data/term_weight/term_weight_labels.txt"
@@ -188,7 +189,7 @@ model = model.to(device)
 # 目前半精度的loss会丢失
 
 # 初始化 GradScaler
-scaler = GradScaler()
+# scaler = GradScaler()
 
 model = model.to(device)
 
@@ -220,13 +221,13 @@ def train(model, loader, optimizer, criterion, epoch):
         # epoch_loss += loss.item()
         # epoch_acc += acc
 
-        with autocast():
-            loss = 0
-            logits, preds, _ = model(query_encoder_embedding_dict, terms_encoder_embedding_dict_list, labels)
-            term_len = len(labels)
-            # for logit, label in zip(logits, labels[0]):
-            #     tmp_loss = criterion(logit.view(config.num_labels), label)
-            #     loss+=tmp_loss
+        # with autocast():
+        loss = 0
+        logits, preds, _ = model(query_encoder_embedding_dict, terms_encoder_embedding_dict_list, labels)
+        term_len = len(labels)
+        # for logit, label in zip(logits, labels[0]):
+        #     tmp_loss = criterion(logit.view(config.num_labels), label)
+        #     loss+=tmp_loss
 
         # optimizer.zero_grad()
         # if labels.shape != preds.shape:
