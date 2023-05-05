@@ -17,7 +17,7 @@ from torch.utils.tensorboard import SummaryWriter
 from torch.cuda.amp import GradScaler, autocast
 
 
-my_bert_path = "./models/distilbert_torch"
+my_bert_path = "/app/bert_transformer/model/distilbert_torch"
 query_path = "./data/term_weight/query.txt"
 query_qieci_path = "./data/term_weight/term_weight_query_qieci.txt"
 labels_path = "./data/term_weight/term_weight_labels.txt"
@@ -29,7 +29,7 @@ writer = SummaryWriter('./experiment')
 num_labels = 3
 batch_size = 32
 epochs = 100
-lr = 1e-6
+lr = 1e-5
 query_max_len = 32
 term_max_len = 8
 max_term_num = 8
@@ -61,6 +61,8 @@ def read_data(query_path, query_qieci_path, labels_path):
         for label in labels:
             label = list(label)
             label = [int(i)-1 for i in label]
+            # label = [int(i) for i in label]
+            
             labels_list.append(label)
 
     with open(query_path, 'r') as f:
@@ -161,7 +163,7 @@ class TermWeightDataset(Dataset):
             padding_attention_mask = torch.zeros_like(
                 term_emb['attention_mask']).to(device)
             # padding_label_tensor = torch.tensor([0]).to(device)
-            padding_label_tensor = torch.tensor([-1]).to(device)
+            padding_label_tensor = torch.tensor([-100]).to(device)
 
 
             assert len(terms_emb) == len(label), print("len(terms_emb) != len(label)", len(terms_emb), len(label))
@@ -268,7 +270,7 @@ print("model.state_dict().keys()", list(model.state_dict().keys()))
 # define the optimizer and loss function
 optimizer = optim.Adam(model.parameters(), lr=lr)
 # criterion = nn.CrossEntropyLoss()
-criterion = nn.CrossEntropyLoss(ignore_index=-1)
+criterion = nn.CrossEntropyLoss(ignore_index=-100)
 
 
 # define the training loop
@@ -280,24 +282,48 @@ def train(model, loader, optimizer, criterion, epoch):
 
         query_encoder_embedding_dict, labels, terms_encoder_dict, masks  = batch[0], batch[1], batch[2], batch[3]
 
-        with autocast():
-            logits, preds = model(query_encoder_embedding_dict, terms_encoder_dict)
-            labels = labels.view(-1)
-            masks = masks.view(-1)
-            # loss = criterion(logits, labels)
-            loss = torch.tensor(0.0).to(device)
-            target_for_loss = torch.where(labels != -1, labels, torch.zeros_like(labels))
-            for logit, pred, label, mask in zip(logits, preds, labels, masks):
-                if mask !=0:
-                    loss += criterion(logit, label)
-                else:
-                    pass
-                    
-            loss = loss / masks.sum()
+        # with autocast():
+        logits, preds = model(query_encoder_embedding_dict, terms_encoder_dict)
+        labels = labels.view(-1)
+        masks = masks.view(-1)
+        # loss = criterion(logits, labels)
+        loss = torch.tensor(0.0).to(device)
+        acc = torch.tensor(0.0).to(device)
+        target_for_loss = torch.where(labels != -100, labels, torch.zeros_like(labels))
 
-        
-        acc = accuracy_score(labels.tolist(), preds.tolist())
-        acc = (acc * masks).sum() / masks.sum()
+        term_size = preds.shape[0]//batch_size
+        preds = preds.reshape(-1, term_size)
+        preds_maxs = [max(preds_) for preds_ in preds]
+        change_preds = []
+        for preds_max, preds_ in zip(preds_maxs, preds):
+            if preds_max==torch.tensor(1):
+                tmp_preds = [ori_pred+1 for ori_pred in preds_]
+                change_preds.extend(tmp_preds)
+            elif preds_max==torch.tensor(0):
+                tmp_preds = [ori_pred+2 for ori_pred in preds_]
+                change_preds.extend(tmp_preds)
+            else:
+                tmp_preds = preds_
+                change_preds.extend(tmp_preds)
+        change_preds = torch.stack(change_preds, dim=0)
+
+
+
+        for logit, pred, change_pred, label, mask in zip(logits, preds, change_preds, labels, masks):
+            if mask !=0:
+                loss += criterion(logit, label)
+                if change_pred == label:
+                    acc += 1
+            else:
+                pass
+                
+        loss = loss / masks.sum()
+        acc =  acc / masks.sum()
+
+        # for lable, pred in zip(labels.tolist(), preds.tolist()):
+
+        #     acc = accuracy_score(label , pred)
+        # acc = (acc * masks).sum() / masks.sum()
         # acc = accuracy_score(labels.tolist(), preds)
         scaler.scale(loss).backward()
         scaler.step(optimizer)
@@ -341,9 +367,9 @@ def evaluate(model, loader, criterion):
 
 for epoch in range(epochs):
     train_loss, train_acc = train(model,train_loader,optimizer, criterion, epoch)
-    test_loss, test_acc = evaluate(model, valid_loader, criterion)
+    # test_loss, test_acc = evaluate(model, valid_loader, criterion)
     
     print(f"Epoch {epoch+1}")
     print(f"\tTrain Loss: {train_loss:.3f} | Train Acc: {train_acc*100:.2f}%")
-    print(f"\tValid Loss: {test_loss:.3f} | Test Acc: {test_acc*100:.2f}%")
+    # print(f"\tValid Loss: {test_loss:.3f} | Test Acc: {test_acc*100:.2f}%")
 

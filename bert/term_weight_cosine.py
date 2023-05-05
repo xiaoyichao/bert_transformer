@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.optim as optim
 import pickle
 import common4bert
+import tensorflow as tf
 from collections import OrderedDict
 from torch.utils.data import Dataset, DataLoader, random_split
 # from three_piece_tokenizer import ThreePieceTokenizer
@@ -18,7 +19,7 @@ from torch.cuda.amp import GradScaler, autocast
 import warnings
 warnings.filterwarnings("ignore", message="User provided device_type of 'cuda', but CUDA is not available. Disabling")
 
-my_bert_path = "./models/distilbert_torch"
+my_bert_path = "/app/bert_transformer/model/distilbert_torch"
 # my_bert_path = "bert-base-chinese"
 query_path = "./data/term_weight/query.txt"
 query_qieci_path = "./data/term_weight/term_weight_query_qieci.txt"

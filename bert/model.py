@@ -37,6 +37,7 @@ class TermWeightModelSample(nn.Module):
 
         query_bert_outputs = self.distilbert(input_ids=query_encoder_embedding_dict["input_ids"], attention_mask=query_encoder_embedding_dict["attention_mask"], token_type_ids=query_encoder_embedding_dict["token_type_ids"])
         query_emb = torch.mean(query_bert_outputs.last_hidden_state, dim=1)
+        batch_size = query_emb.shape[0]
 
         cos_sims = []
         preds = []
@@ -52,9 +53,21 @@ class TermWeightModelSample(nn.Module):
                 preds.append(2)
             else:
                 preds.append(1)
-        pred_max =  max(preds)
-        if pred_max <=2:
-            preds = [cosine +1 for cosine in cos_sims]
+        # term_size = preds.shape[0]//batch_size
+        # preds = preds.reshape(-1, term_size)
+        # preds_maxs = [max(preds_) for preds_ in preds]
+        # change_preds = []
+        # for preds_max, preds_ in zip(preds_maxs, preds):
+        #     if preds_max==torch.tensor(1):
+        #         tmp_preds = [ori_pred+1 for ori_pred in preds_]
+        #         change_preds.extend(tmp_preds)
+        #     elif preds_max==torch.tensor(0):
+        #         tmp_preds = [ori_pred+2 for ori_pred in preds_]
+        #         change_preds.extend(tmp_preds)
+        #     else:
+        #         tmp_preds = preds_
+        #         change_preds.extend(tmp_preds)
+        # change_preds = torch.stack(change_preds, dim=0)
 
 
             # linear_1 = self.relu_layer(self.linear_1(cos_sim))
@@ -80,8 +93,9 @@ class TermWeightModel(nn.Module):
         super(TermWeightModel, self).__init__()
         self.distilbert = distilbert
         self.config = config
-        self.linear_1 = nn.Linear(self.config.max_term_num, self.config.max_term_num)
-        self.class_layer = nn.Linear(1, config.num_labels)
+        self.linear_1 = nn.Linear(768*2, 768*2)
+        
+        self.class_layer = nn.Linear(768*2, config.num_labels)
         nn.init.xavier_uniform_(self.class_layer.weight)
         
 
@@ -106,6 +120,7 @@ class TermWeightModel(nn.Module):
 
         query_bert_outputs = self.distilbert(input_ids=query_encoder_embedding_dict["input_ids"], attention_mask=query_encoder_embedding_dict["attention_mask"], token_type_ids=query_encoder_embedding_dict["token_type_ids"]) # [batch_size, query_seq_len, emb_size]
         query_emb = torch.mean(query_bert_outputs.last_hidden_state, dim=1) # [batch_size, emb_size]
+        
         query_emb = query_emb.repeat(self.config.max_term_num, 1) # [batch_size*term_size, emb_size]
 
 
@@ -115,27 +130,41 @@ class TermWeightModel(nn.Module):
         term_bert_outputs = self.distilbert(input_ids=terms_input_ids, attention_mask=terms_attention_mask, token_type_ids=terms_token_type_ids) #[batch_size*term_size, term_seq_len, emb_size]
         term_emb = torch.mean(term_bert_outputs.last_hidden_state, dim=1) # [batch_size*term_size, emb_size]
 
-        cos_sims = F.cosine_similarity(query_emb, term_emb)
-        # cos_sims = torch.unsqueeze(cos_sims, -1) # [batch_size*term_size, 1]
-        cos_sims = torch.reshape(cos_sims, (-1, self.config.max_term_num)) # [batch_size, term_size]
-    
-        linear_1 = self.relu_layer(self.linear_1(cos_sims))
-        linear_1 = torch.reshape(linear_1,(-1,1))
+        # cos_sims = F.cosine_similarity(query_emb, term_emb)
+
+        merge_emb = torch.concat((query_emb, term_emb),dim=-1) 
+        linear_1 = self.relu_layer(self.linear_1(merge_emb))
+        # linear_1 = torch.reshape(linear_1,(-1,1))
 
         logits = self.class_layer(linear_1)
+
+        # cos_sims = torch.unsqueeze(cos_sims, -1) # [batch_size*term_size, 1]
+
+
+        # cos_sims = torch.reshape(cos_sims, (-1, self.config.max_term_num)) # [batch_size, term_size]
+    
+        # linear_1 = self.relu_layer(self.linear_1(cos_sims))
+        # linear_1 = torch.reshape(linear_1,(-1,1))
+
+        # logits = self.class_layer(linear_1)
+
+        # logits = self.class_layer(cos_sims)
+        
         preds = torch.argmax(logits, dim=1)
-        preds_max = max(preds)
-
-        # preds = []
-        # for cos_sim in cos_sims:
-        #     cos_sim = cos_sim.tolist()[0]
-        #     if cos_sim>=0.8:
-        #         preds.append(2.0)
-        #     elif cos_sim>=0.5:
-        #         preds.append(1.0)
+        # term_size = preds.shape[0]//batch_size
+        # preds = preds.reshape(-1, term_size)
+        # preds_max = [max(preds_) for preds_ in preds]
+        # change_preds = []
+        # for preds_ in preds:
+        #     if preds_max==1:
+        #         tmp_preds = [ori_pred+1 for ori_pred in preds_]
+        #         change_preds.extend(tmp_preds)
+        #     elif preds_max==0:
+        #         tmp_preds = [ori_pred+2 for ori_pred in preds_]
+        #         change_preds.extend(tmp_preds)
         #     else:
-        #         preds.append(0.0)
-
+        #         tmp_preds = preds_
+        #         change_preds.extend(tmp_preds)
     
         return logits, preds
 
