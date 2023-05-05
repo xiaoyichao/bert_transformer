@@ -165,12 +165,20 @@ class TermWeightDataset(Dataset):
 
 
             assert len(terms_emb) == len(label), print("len(terms_emb) != len(label)", len(terms_emb), len(label))
-            for _ in range(self.max_term_num-len(terms_emb)):
-                terms_input_ids.append(padding_input_ids)
-                terms_token_type_ids.append(padding_token_type_ids)
-                terms_attention_masks.append(padding_attention_mask)
-                label = torch.cat((label, padding_label_tensor), dim=0)
-                mask.append(torch.tensor([0]))
+            need_pad_num = self.max_term_num-len(terms_emb)
+            if need_pad_num>0:
+                for _ in range(need_pad_num):
+                    terms_input_ids.append(padding_input_ids)
+                    terms_token_type_ids.append(padding_token_type_ids)
+                    terms_attention_masks.append(padding_attention_mask)
+                    label = torch.cat((label, padding_label_tensor), dim=0)
+                    mask.append(torch.tensor([0]))
+            else:
+                terms_input_ids = terms_input_ids[:self.max_term_num]
+                terms_token_type_ids = terms_token_type_ids[:self.max_term_num]
+                terms_attention_masks = terms_attention_masks[:self.max_term_num]
+                label = label[:self.max_term_num]
+                mask = mask[:self.max_term_num]
 
             terms_input_ids = torch.stack(terms_input_ids, dim=0)
             terms_token_type_ids = torch.stack(terms_token_type_ids, dim=0)
