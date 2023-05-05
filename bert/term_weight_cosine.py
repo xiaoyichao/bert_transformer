@@ -1,21 +1,14 @@
 import torch
-import sys
 import torch.nn as nn
 import torch.optim as optim
-import pickle
-import common4bert
 import tensorflow as tf
 from collections import OrderedDict
 from torch.utils.data import Dataset, DataLoader, random_split
-# from three_piece_tokenizer import ThreePieceTokenizer
 from model import TermWeightModel, TermWeightModelSample
-# from transformer_model_ import  MyBertModel
-from intent_data_loader import IntentDataset
 from transformers import AutoModel, AutoTokenizer, AutoConfig, BertTokenizer, BertModel, BertConfig
 from sklearn.metrics import accuracy_score, ndcg_score
 from sklearn.model_selection import train_test_split
 from torch.utils.tensorboard import SummaryWriter
-from torch.cuda.amp import GradScaler, autocast
 import warnings
 warnings.filterwarnings("ignore", message="User provided device_type of 'cuda', but CUDA is not available. Disabling")
 
@@ -71,8 +64,6 @@ def read_data(query_path, query_qieci_path, labels_path):
     data = []
     assert len(query_list)==len(query_term_list) and len(query_term_list)==len(labels_list)
     for query, query_term, labels in zip(query_list, query_term_list, labels_list):
-        # if len(query_term)!=len(labels):
-        #     print(" len(query_term)!=len(labels)", query_term, labels)
         assert len(query_term)==len(labels) , print(" len(query_term)!=len(labels)", query_term, labels)
         data.append([query, query_term, labels])
         
@@ -142,9 +133,6 @@ class TermWeightDataset(Dataset, ):
                 terms_input_ids.append(term_emb['input_ids'])
                 terms_token_type_ids.append(term_emb['token_type_ids'])
                 terms_attention_masks.append(term_emb['attention_mask'])
-            # terms_input_ids.append(terms_emb['input_ids'])
-            # terms_token_type_ids.append(terms_emb['token_type_ids'])
-            # terms_attention_masks.append(terms_emb['attention_mask'])
             labels.append(labels['labels'])
 
         # Padding
@@ -181,16 +169,6 @@ valid_loader =  DataLoader(valid_dataset, batch_size=batch_size, shuffle=True, )
 
 # 创建模型
 model = TermWeightModelSample(distil_bert, config)
-scaler = GradScaler()
-model = model.to(device)
-
-# print_size_of_model(model)
-# model = model.half()
-# print_size_of_model(model)
-# 目前半精度的loss会丢失
-
-# 初始化 GradScaler
-# scaler = GradScaler()
 
 model = model.to(device)
 
@@ -211,51 +189,16 @@ def train(model, loader, optimizer, criterion, epoch):
     for batch_idx, batch in enumerate(loader):
 
         query_encoder_embedding_dict, terms_encoder_embedding_dict_list, labels = batch[0], batch[1], batch[2]
-        # labels = query_encoder_embedding_dict["label"]
 
-        # optimizer.zero_grad()
-        # logits, pred = model(encoder_embedding)
-        # loss = criterion(logits.view(-1, config.num_labels), labels)
-        # acc = accuracy_score(labels.tolist(), pred.tolist())
-        # loss.backward()
-        # optimizer.step()
-        # epoch_loss += loss.item()
-        # epoch_acc += acc
-
-        # with autocast():
         loss = 0
         logits, preds, _ = model(query_encoder_embedding_dict, terms_encoder_embedding_dict_list, labels)
         term_len = len(labels)
-        # for logit, label in zip(logits, labels[0]):
-        #     tmp_loss = criterion(logit.view(config.num_labels), label)
-        #     loss+=tmp_loss
-
-        # optimizer.zero_grad()
-        # if labels.shape != preds.shape:
-        #     print("labels.shape", labels.shape)
-        #     print("preds", preds.shape)
-        #     print(111)
-        # else:
-        #     # pass
-        #     print("labels.shape", labels.shape)
-        #     print("preds", preds.shape)
-        #     print(222)
         labels = torch.reshape(labels, (-1, ))
         preds = torch.reshape(preds, (-1,))
         print("batch_idx", batch_idx)
-        # print("labels", labels.shape)
-        # print("preds", preds.shape)
         acc = accuracy_score(labels.tolist(), preds.tolist())
-        # scaler.scale(loss).backward()
-        # scaler.step(optimizer)
-        # scaler.update()
-        # epoch_loss += loss.item()
-        # acc = 1
         epoch_acc += acc
 
-            
-        # ...log the running loss
-        # writer.add_scalar('training loss', loss.item(), len(loader) * epoch + batch_idx)
 
         writer.add_scalar('training acc', acc, len(loader) * epoch + batch_idx)
 
@@ -271,13 +214,10 @@ def evaluate(model, loader, criterion):
             query_encoder_embedding_dict, terms_encoder_embedding_dict_list, labels = batch[0], batch[1], batch[2]
             
             logits, preds, _ = model(query_encoder_embedding_dict, terms_encoder_embedding_dict_list, labels)
-            # loss = criterion(logits.view(-1, config.num_labels), labels)
             labels = torch.reshape(labels, (-1, ))
             preds = torch.reshape(preds, (-1, ))
             acc = accuracy_score(labels.tolist(), preds.tolist())
-            # epoch_loss += loss.item()
             epoch_acc += acc
-            # writer.add_scalar('valid loss', loss.item(), len(loader) * epoch + batch_idx)
 
             writer.add_scalar('valid acc', acc, len(loader) * epoch + batch_idx)
     return epoch_loss / len(loader), epoch_acc / len(loader)
@@ -285,7 +225,6 @@ def evaluate(model, loader, criterion):
 
 for epoch in range(epochs):
     train_loss, train_acc = train(model,train_loader,optimizer, criterion, epoch)
-    # train_loss, train_acc = train(model,valid_loader,optimizer, criterion, epoch)
     test_loss, test_acc = evaluate(model, valid_loader, criterion)
     
     print(f"Epoch {epoch+1}")
