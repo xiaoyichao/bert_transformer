@@ -5,9 +5,9 @@ import torch.nn.functional as F
 
 
 
-class TermWeightModelSample(nn.Module):
+class TermWeightModelCosin(nn.Module):
     def __init__(self, distilbert, config):
-        super(TermWeightModelSample, self).__init__()
+        super(TermWeightModelCosin, self).__init__()
         self.distilbert = distilbert
         self.linear_1 = nn.Linear(1, 16)
         self.class_layer = nn.Linear(16, config.num_labels)

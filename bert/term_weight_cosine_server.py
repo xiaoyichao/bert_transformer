@@ -185,29 +185,7 @@ optimizer = optim.Adam(model.parameters(), lr=lr)
 criterion = nn.CrossEntropyLoss()
 
 
-# define the training loop
-def train(model, loader, optimizer, criterion, epoch):
-    # model.train()
-    model.eval()
-    epoch_loss = 0
-    epoch_acc = 0
-    for batch_idx, batch in enumerate(loader):
 
-        query_encoder_embedding_dict, terms_encoder_embedding_dict_list, labels = batch[0], batch[1], batch[2]
-
-        loss = 0
-        logits, preds, _ = model(query_encoder_embedding_dict, terms_encoder_embedding_dict_list, labels)
-        term_len = len(labels)
-        labels = torch.reshape(labels, (-1, ))
-        preds = torch.reshape(preds, (-1,))
-        print("batch_idx", batch_idx)
-        acc = accuracy_score(labels.tolist(), preds.tolist())
-        epoch_acc += acc
-
-
-        writer.add_scalar('training acc', acc, len(loader) * epoch + batch_idx)
-    
-    return epoch_loss / len(loader), epoch_acc / len(loader)
 
 # define the evaluation loop
 def evaluate(model, loader, criterion):
@@ -227,51 +205,4 @@ def evaluate(model, loader, criterion):
             writer.add_scalar('valid acc', acc, len(loader) * epoch + batch_idx)
     return epoch_loss / len(loader), epoch_acc / len(loader)
 
-# def save_onnx():
-#     # Input to the model
-#     query_encoder_embedding_dict = {"inputs":torch.zeros((1, 768), dtype=torch.long),
-#                                     "attention_mask":torch.zeros((1, 768), dtype=torch.long),
-#                                     "token_type_ids":torch.zeros((0, 768), dtype=torch.long)
-#                                     }
-#     terms_encoder_embedding_dict_list = [{"inputs":torch.zeros((1, 768), dtype=torch.long),
-#                                     "attention_mask":torch.zeros((1, 768), dtype=torch.long),
-#                                     "token_type_ids":torch.zeros((0, 768), dtype=torch.long)
-#                                     }]*10
-
-#     inputs = torch.zeros((1, 768), dtype=torch.long)
-#     attention_mask = torch.ones((1, 768), dtype=torch.long)
-#     token_type_ids = torch.zeros((1, 768), dtype=torch.long)
-#     outputs = model(inputs=inputs, attention_mask=attention_mask, token_type_ids=token_type_ids)
-
-#     # Export the model to ONNX
-#     input_names = ['input_ids', 'attention_mask']
-#     output_names = ['output']
-#     dynamic_axes = {'input_ids': {0: 'batch_size'}, 'attention_mask': {0: 'batch_size'}, 'output': {0: 'batch_size'}}
-#     onnx_path = 'model.onnx'
-#     torch.onnx.export(model, (inputs, attention_mask), onnx_path, input_names=input_names, output_names=output_names, dynamic_axes=dynamic_axes)
-
-#     # Check the ONNX model
-#     onnx_model = onnx.load(onnx_path)
-#     onnx.checker.check_model(onnx_model)
-
-# def save_troch(model, save_path):
-#     torch.save(model.state_dict(), save_path)
-#     print("模型保存完成", save_path)
-
-for epoch in range(epochs):
-    print(f"Epoch {epoch+1}")
-    train_loss, train_acc = train(model,train_loader,optimizer, criterion, epoch)
-    print(f"\tTrain Loss: {train_loss:.3f} | Train Acc: {train_acc*100:.2f}%")
-    save_path = "/app/bert_transformer/model/term_weight/"+str(train_acc*100)[:2]+"_term_weight.pth"
-    torch.save({
-        'epoch': epoch,
-        'model_state_dict': model.state_dict(),
-        'optimizer_state_dict': optimizer.state_dict(),
-    }, save_path)
-
-
-    # new_model = torch.load(save_path)
-    # # new_model.eval()
-    test_loss, test_acc = evaluate(model, valid_loader, criterion)
-    print(f"\tValid Loss: {test_loss:.3f} | Test Acc: {test_acc*100:.2f}%")
 
