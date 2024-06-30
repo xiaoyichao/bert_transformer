@@ -7,7 +7,6 @@ batch_size = 64
 seq_len = 512 # F
 width = 768
 num_attention_heads = 12
-attention_head_size = width // num_attention_heads
 from_seq_len = seq_len
 to_seq_len = seq_len
 
