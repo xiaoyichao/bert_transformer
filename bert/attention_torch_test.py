@@ -36,7 +36,7 @@ class SelfAttention(nn.Module):
         attention_score = torch.matmul(q, k.transpose(-1,-2))/self.dk_sqrt
         if mask is not None:
             mask = mask.unsqueeze(1)
-            attention_score = attention_score + (1.0 -mask)*(-1e5)
+            attention_score = attention_score + (1.0 -mask)*(-10000)
 
         attention_score = F.softmax(attention_score, dim=-1)
         
