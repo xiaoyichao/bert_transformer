@@ -12,13 +12,13 @@ to_seq_len = seq_len
 
 class MultiHeadAttention(nn.Module):
     def __init__(self, width, num_attention_heads):
-        super(MultiHeadAttention, self).__init__()
+        super().__init__()
         self.num_attention_heads = num_attention_heads
         self.attention_head_size = width // num_attention_heads
         self.q_layer = nn.Linear(width, width)
         self.k_layer = nn.Linear(width, width)
         self.v_layer = nn.Linear(width, width)
-        self.d_sqrt = math.sqrt(self.attention_head_size)
+        self.dk_sqrt = math.sqrt(self.attention_head_size)
 
     def transpose_for_scores(self, x, batch_size, seq_len):
         x = x.view(batch_size, seq_len, self.num_attention_heads, self.attention_head_size) # [B,S,N,H]
@@ -36,7 +36,7 @@ class MultiHeadAttention(nn.Module):
         q = self.transpose_for_scores(q, batch_size, from_seq_len)
         k = self.transpose_for_scores(k, batch_size, to_seq_len)
         
-        attention_scores = torch.matmul(q, k.transpose(-1, -2)) / self.d_sqrt
+        attention_scores = torch.matmul(q, k.transpose(-1, -2)) / self.dk_sqrt
         
         if to_mask is not None:
             to_mask = to_mask.unsqueeze(1)
