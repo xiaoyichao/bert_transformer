@@ -3,73 +3,47 @@ import math
 import torch.nn as nn
 import torch.nn.functional as F
 
-batch_size = 64
-width = 768
-seq_len = 512
-head_num = 12
 
-class SelfAttention(nn.Module):
-    def __init__(self, batch_size, seq_len, width, head_num):
+class Attention(nn.Module):
+    def __init__(self, batch_size, seq_len, dim, head_num):
         super().__init__()
         self.batch_size = batch_size
-        self.seq_len = seq_len
-        self.width = width
+        self.dim = dim
         self.head_num = head_num
-        self.head_size = self.width//head_num
-        self.q_layer = nn.Linear(self.width, self.width)
-        self.k_layer = nn.Linear(self.width, self.width)
-        self.v_layer = nn.Linear(self.width, self.width)
-        self.dk_sqrt = math.sqrt(self.head_size)
+        self.head_size = self.dim//self.head_num
+        self.seq_len = seq_len
+        self.dk = math.sqrt(self.head_size)
+        self.q_layer = nn.Linear(self.dim, self.dim)
+        self.k_layer = nn.Linear(self.dim, self.dim)
+        self.v_layer = nn.Linear(self.dim, self.dim)
 
-    def transpose_for_score(self, v):
-        v = v.view(self.batch_size, self.seq_len, self.head_num, self.head_size)
-        return v.transpose(1,2)
-
-    def forward(self, from_tensor, to_tensor, mask=None):
+    def forward(self, from_tensor, to_tensor):
         q = self.q_layer(from_tensor)
         k = self.k_layer(to_tensor)
         v = self.v_layer(to_tensor)
 
-        q = self.transpose_for_score(q)
-        k = self.transpose_for_score(k)
+        q = self.transpose(q)
+        k = self.transpose(k)
+        v = self.transpose(v)
 
-        attention_score = torch.matmul(q, k.transpose(-1,-2))/self.dk_sqrt
-        if mask is not None:
-            mask = mask.unsqueeze(1)
-            attention_score = attention_score + (1.0 -mask)*(-10000)
-
-        attention_score = F.softmax(attention_score, dim=-1)
-        
-        v = self.transpose_for_score(v)
-
-        attention_pros = torch.matmul(attention_score, v)
-        attention_pros = attention_pros.transpose(1,2).contiguous()
-        output = attention_pros.view(self.batch_size, self.seq_len, self.head_num*self.head_size)
+        atten_scores = torch.matmul(q, k.transpose(-1, -2))/self.dk
+        atten_scores = F.softmax(atten_scores, dim=-1)
+        atten_probs = torch.matmul(atten_scores, v)
+        atten_probs = atten_probs.transpose(1, 2).contiguous()
+        output = atten_probs.view(self.batch_size, self.seq_len,
+                                 self.head_num*self.head_size)
         return output
 
-def creat_attention_mask(from_tensor, to_mask):
-    batch_size = from_tensor.size(0)
-    from_seq_len = from_tensor.size(1)
-    to_seq_len = to_mask.size(1)
-    to_mask = to_mask.view(batch_size, 1, to_seq_len)
-    boardcast_ones = torch.ones(batch_size, from_seq_len, 1)
-    return boardcast_ones*to_mask
-
-from_tensor = torch.rand(64,512,768)
-to_mask = torch.rand(64,512)
-ones = torch.ones(64,512)
-zeros = torch.zeros(64,512)
-to_mask = torch.where(to_mask<0.5, zeros, ones)
-attention_mask = creat_attention_mask(from_tensor, to_mask)
-attention = SelfAttention(64,512,768,12)
-y= attention(from_tensor, from_tensor, attention_mask)
-print(y.shape)
+    def transpose(self, form_tensor):
+        form_tensor = form_tensor.view(
+            self.batch_size, self.seq_len, self.head_num, self.head_size)
+        to = form_tensor.transpose(1, 2)
+        return to
 
 
-
-
-
-
-
-        
-
+if __name__ == "__main__":
+    batch_size, seq_len, dim, head_num = 32, 512, 768, 12
+    embeddings = torch.rand(batch_size, seq_len, dim)
+    attention = Attention(batch_size, seq_len, dim, head_num)
+    y = attention.forward(embeddings, embeddings)
+    print(y.shape)
