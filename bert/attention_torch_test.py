@@ -8,10 +8,10 @@ class Attention(nn.Module):
     def __init__(self, batch_size, seq_len, dim, head_num):
         super().__init__()
         self.batch_size = batch_size
+        self.seq_len = seq_len
         self.dim = dim
         self.head_num = head_num
         self.head_size = self.dim//self.head_num
-        self.seq_len = seq_len
         self.dk = math.sqrt(self.head_size)
         self.q_layer = nn.Linear(self.dim, self.dim)
         self.k_layer = nn.Linear(self.dim, self.dim)
@@ -34,11 +34,11 @@ class Attention(nn.Module):
                                  self.head_num*self.head_size)
         return output
 
-    def transpose(self, form_tensor):
-        form_tensor = form_tensor.view(
+    def transpose(self, input_tensor):
+        input_tensor = input_tensor.view(
             self.batch_size, self.seq_len, self.head_num, self.head_size)
-        to = form_tensor.transpose(1, 2)
-        return to
+        output_tensor = input_tensor.transpose(1, 2)
+        return output_tensor
 
 
 if __name__ == "__main__":
